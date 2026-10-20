@@ -22,6 +22,8 @@ func _run() -> void:
 	_check(not _elevator.is_lit("close"), "the close light goes out once the doors are shut")
 	_check(not _call_lit(0), "floor 0 call lamp goes out once A boards")
 	_check(a.get_parent() == _elevator.get_cab(), "guest A rides inside the cab")
+	_check(_guests.talking_to == a, "guest A greets on boarding")
+	_guests.reply(Guest.Reply.NEUTRAL)
 	a.press()
 	_check(_last_said.to_lower().contains("floor 1"), "guest A names floor 1 (said: %s)" % _last_said)
 
@@ -31,7 +33,10 @@ func _run() -> void:
 	_check(_elevator.dings == 3, "each new guest rings the bell")
 	_check(_call_lit(1) and _call_lit(2), "floor 1 and 2 call lamps light up")
 	c.press()
-	_check(_last_said.to_lower().contains("floor 0"), "a waiting guest names their floor too (said: %s)" % _last_said)
+	_check(_guests.talking_to == c, "clicking a waiting guest the first time gets their greeting")
+	_guests.reply(Guest.Reply.NEUTRAL)
+	c.press()
+	_check(_last_said.to_lower().contains("floor 0"), "after that they name their floor too (said: %s)" % _last_said)
 
 	# Floor 1: A gets out, B gets in.
 	await _ride_to(1)
