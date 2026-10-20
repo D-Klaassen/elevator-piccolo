@@ -2,7 +2,7 @@
 title: What exactly is in the vertical slice?
 label: wayfinder:grilling
 status: open
-assignee:
+assignee: D-Klaassen
 blocked_by: [01,02,03,06]
 ---
 
