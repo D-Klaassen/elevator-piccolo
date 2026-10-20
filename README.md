@@ -22,22 +22,16 @@ A shift runs from 08:00 to 18:00 (about 9 real minutes, clock at the top) and br
 
 ## Tests
 
-Headless scripted tests drive the cab through its own buttons. `elevator_test` covers the lit buttons and the floor queue; `guest_loop_test` serves three guests in a row; `chat_test` covers chats, the shuffled reply choices and how each reply changes the tip; `shift_test` covers the clock, patience, pay and the end-of-shift report, then plays a whole shift with an autopilot:
+Headless scripted tests drive the cab through its own buttons. `elevator_test` covers the lit buttons and the floor queue; `guest_loop_test` serves three guests in a row; `chat_test` covers chats, the shuffled reply choices and how each reply changes the tip; `shift_test` covers the clock, patience, pay and the end-of-shift report, then plays a whole shift with an autopilot. Run them all with the runner, which exits with 1 if any test fails:
 
 ```bash
-godot --headless --path . --fixed-fps 60 --script tests/elevator_test.gd
+tests/run.sh
 ```
+
+Or run one or more by name:
 
 ```bash
-godot --headless --path . --fixed-fps 60 --script tests/guest_loop_test.gd
+tests/run.sh shift_test
 ```
 
-```bash
-godot --headless --path . --fixed-fps 60 --script tests/chat_test.gd
-```
-
-```bash
-godot --headless --path . --fixed-fps 60 --script tests/shift_test.gd
-```
-
-Each prints one line per check and exits with 1 if any check fails.
+Each test prints one line per check and ends with `<name>: PASS` or `<name>: <n> FAILED`. A script or engine error during the run also counts as a failed check, even if the test carries on past it. Warnings are printed but do not fail the test. The runner also fails a test that exits with 0 but prints no `PASS` line. That happens when the test script can't load, for example on a parse error: Godot prints the error and exits with 0 without running a check. On a fresh clone, run `godot --headless --path . --import` once before the first test run.

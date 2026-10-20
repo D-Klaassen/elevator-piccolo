@@ -2,7 +2,7 @@ extends "res://tests/scene_test.gd"
 ## Headless scripted test of the guest loop: serves three guests in a row by pressing
 ## the cab's buttons and talking to the guests, the way a player would.
 ##
-## Run: godot --headless --path . --fixed-fps 60 --script tests/guest_loop_test.gd
+## Run: tests/run.sh guest_loop_test
 
 
 func _run() -> void:

@@ -3,7 +3,7 @@ extends "res://tests/scene_test.gd"
 ## offers three replies in a shuffled order, and how well your reply lands changes the
 ## tip (and a bad one may cost a complaint).
 ##
-## Run: godot --headless --path . --fixed-fps 60 --script tests/chat_test.gd
+## Run: tests/run.sh chat_test
 
 var _replies: ReplyChoices
 
