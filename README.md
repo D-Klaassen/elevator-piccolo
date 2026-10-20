@@ -40,4 +40,4 @@ godot --headless --path . --fixed-fps 60 --script tests/greeting_test.gd
 godot --headless --path . --fixed-fps 60 --script tests/shift_test.gd
 ```
 
-Each prints one line per check and exits with 1 if any check fails.
+Each prints one line per check and exits with 1 if any check fails. A script or engine error during the run also counts as a failed check, even if the test carries on past it. Warnings are printed but do not fail the test.
