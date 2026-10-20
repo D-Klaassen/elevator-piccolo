@@ -2,29 +2,28 @@
 <style>
 body{font-family:system-ui;background:#2b2118;color:#f3e9dc;padding:16px;max-width:920px;margin:auto}
 h1{font-size:18px}.note{opacity:.7;font-size:13px}
-.cab{background:#4a3828;border:6px solid #c9a227;border-radius:8px;padding:16px;display:grid;grid-template-columns:1fr 180px;gap:16px}
+.cab{position:relative;padding-bottom:110px !important;background:#4a3828;border:6px solid #c9a227;border-radius:8px;padding:16px;display:grid;grid-template-columns:1fr 180px;gap:16px}
 .guest{font-size:56px}.tag{font-size:13px;opacity:.8;margin-left:8px}
-.bubble{background:#f3e9dc;color:#222;border-radius:12px;padding:12px;font-size:21px;min-height:56px}
+.subtitle{position:absolute;left:0;right:0;bottom:16px;text-align:center;pointer-events:none}.subtitle div{display:inline-block;background:rgba(0,0,0,.75);color:#fff;font-size:22px;padding:6px 14px;border-radius:4px;max-width:90%}
 .sub{font-size:15px;color:#555;font-style:italic;margin-top:6px;border-top:1px solid #ccc;padding-top:6px}
-.gesture{font-size:20px;margin-top:8px}.en{color:#0a5c36;font-weight:600}.known{color:#1d4ed8;font-weight:600}.known small{font-weight:400;color:#1d4ed8;opacity:.8}.miss{color:#999}
+.gesture{font-size:20px;margin-top:8px}.miss{color:#aaa}.miss{color:#999}
 .panel{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .panel button{font-size:13px;padding:6px;border-radius:12px;border:2px solid #c9a227;background:#222;color:#c9a227;cursor:pointer}
 .row{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;align-items:center}.row button{padding:8px 12px}
 pre{background:#111;padding:10px;font-size:12px;overflow:auto}.log div{font-size:14px}
 </style></head><body>
 <h1>PROTOTYPE: understanding guests (English known, Spanish not)</h1>
-<p class="note">Throwaway. English guests: you understand everything. Spanish guests speak real Spanish, but you don't catch every word or know how it's spelled, so what you "hear" is a bit off. Grey "…" = a word you missed. Green = English words they mix in: never the floor name, just a clue (\"hungry\", \"water\"). Helpful guests give hints less often and mostly mime; ask them again and they hold up fingers. Spanish lessons (upgrade) teach you words step by step, the useful words come late (small words, verbs, numbers, places): <span style="color:#7aa2ff">blue words</span> are words you know, with their meaning. You also miss fewer words. After lesson 5 you get full subtitles.</p>
+<p class="note">Throwaway. English guests: you understand everything. Spanish guests speak real Spanish, but you don't catch every word or know how it's spelled, so what you "hear" is a bit off. Speech appears as a subtitle at the bottom. "…" = a word you missed. Guests sometimes mix in English words: never the floor name, just a clue (\"hungry\", \"water\"). Helpful guests give hints less often and mostly mime; ask them again and they hold up fingers. Spanish lessons (upgrade) teach you words step by step, the useful words come late (small words, verbs, numbers, places): words you know appear in English in the subtitle, the rest stays half-heard Spanish. You also miss fewer words. After lesson 5 you get full subtitles.</p>
 <div class="row">
  <span>Spanish lessons: <button onclick="lesson(-1)">−</button> <b id="lv">0</b>/5 <button onclick="lesson(1)">+ take lesson</button> <span id="lvdesc" class="note"></span></span>
  <label>Spanish guests: <input type="range" id="mix" min="0" max="100" value="60" oninput="S.spanishPct=+this.value;document.getElementById('mixv').textContent=this.value+'%'"> <span id="mixv">60%</span></label>
 </div>
 <div class="cab"><div>
  <div><span class="guest" id="guest"></span><span class="tag" id="tag"></span></div>
- <div class="bubble"><div id="bubble"></div><div class="sub" id="sub" hidden></div></div>
- <div class="gesture" id="gesture"></div>
+  <div class="gesture" id="gesture"></div>
  <div class="row"><button onclick="again()">🙋 "Sorry, again?" (costs patience)</button><button onclick="next()">Skip guest</button></div>
  <div>Patience: <span id="pat"></span> · Money: €<span id="money">0</span> · Right <span id="r">0</span> / Wrong <span id="w">0</span></div>
-</div><div class="panel" id="panel"></div></div>
+</div><div class="panel" id="panel"></div><div class="subtitle"><div id="bubble"></div></div></div>
 <h3>Log</h3><div class="log" id="log"></div>
 <h3>State</h3><pre id="state"></pre>
 <script>
@@ -65,18 +64,17 @@ function lesson(d){S.lessons=Math.max(0,Math.min(5,S.lessons+d));if(S.lang=="es"
 function mishear(w){
  const fade=1-S.lessons/8;
  if(Math.random()<.25*fade) return '<span class="miss">…</span>';
- const m=knownMeaning(w);if(m)return `<span class="known">${w} <small>(${m})</small></span>`;
+ const m=knownMeaning(w);if(m)return m;
  let p=w.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[¿¡]/g,"");
  if(Math.random()<.6*fade) p=p.replace(/^h/,"").replace(/qu/g,"k").replace(/ll/g,"y").replace(/v/g,"b").replace(/z/g,"s").replace(/j/g,"h").replace(/cion/g,"sion").replace(/ñ/g,"ny");
  return p;
 }
 function draw(){
- const b=document.getElementById("bubble"),sub=document.getElementById("sub");
+ const b=document.getElementById("bubble");
  document.getElementById("tag").textContent=S.lang=="en"?"🇬🇧 English":`🇪🇸 Spanish · ${TYPES[S.type].label}`;
- if(S.lang=="en"){b.textContent=EN[S.floor][S.lineIdx];sub.hidden=true}
+ if(S.lang=="en"){b.textContent=EN[S.floor][S.lineIdx]}
  else{const [es,tr]=ES[S.floor][S.lineIdx];
-  b.innerHTML=(S.lessons>=5?es:S.heard)+(S.englishMixed.length?` <span class="en">${S.englishMixed.join("… ")}</span>`:"");
-  sub.hidden=S.lessons<5;sub.textContent=tr}
+  b.innerHTML=(S.lessons>=5?tr:S.heard)+(S.englishMixed.length?" "+S.englishMixed.join("… "):"")}
  document.getElementById("gesture").textContent=S.gesture;document.getElementById("lv").textContent=S.lessons;document.getElementById("lvdesc").textContent=S.lessons?"learned: "+LESSONS.slice(0,S.lessons).map(l=>l.desc).join(", "):"no Spanish yet";
  document.getElementById("pat").textContent="❤️".repeat(S.patience)||"💢";
  for(const k of["money","r","w"])document.getElementById(k).textContent=S[{money:"money",r:"right",w:"wrong"}[k]];
