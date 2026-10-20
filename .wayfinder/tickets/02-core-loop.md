@@ -2,7 +2,7 @@
 title: What is the core loop and how is a shift scored?
 label: wayfinder:grilling
 status: open
-assignee:
+assignee: D-Klaassen
 blocked_by: []
 ---
 
