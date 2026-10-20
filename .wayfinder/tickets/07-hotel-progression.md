@@ -2,7 +2,7 @@
 title: What changes when you move to a bigger hotel?
 label: wayfinder:grilling
 status: open
-assignee:
+assignee: D-Klaassen
 blocked_by: []
 ---
 
