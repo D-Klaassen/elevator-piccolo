@@ -19,6 +19,7 @@ A game design + tech spec for a playable **vertical slice**: engine chosen, firs
 ## Decisions so far
 
 - [Which game engine do we build on?](tickets/01-engine-choice.md): Godot 4 + GDScript; Unity 6 as fallback if we lean heavily on store assets
+- [How do we source elevator music we may ship on Steam?](tickets/04-elevator-music.md): CC0/Pixabay for prototyping, commissioned stems with full rights for release
 
 ## Not yet specified
 
