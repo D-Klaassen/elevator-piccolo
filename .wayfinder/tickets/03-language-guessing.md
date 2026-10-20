@@ -2,7 +2,7 @@
 title: How does guessing a guest's floor in an unknown language feel?
 label: wayfinder:prototype
 status: open
-assignee:
+assignee: D-Klaassen
 blocked_by: []
 ---
 
