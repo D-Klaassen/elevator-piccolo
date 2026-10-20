@@ -20,10 +20,10 @@ A game design + tech spec for a playable **vertical slice**: engine chosen, firs
 
 - [Which game engine do we build on?](tickets/01-engine-choice.md): Godot 4 + GDScript; Unity 6 as fallback if we lean heavily on store assets
 - [How do we source elevator music we may ship on Steam?](tickets/04-elevator-music.md): CC0/Pixabay for prototyping, commissioned stems with full rights for release
+- [What is the core loop and how is a shift scored?](tickets/02-core-loop.md): a timed day shift, call panel, physical buttons, capacity 3, fare plus tip, star rating unlocks hotels, music adds patience
 
 ## Not yet specified
 
-- Progression: upgrade catalogue (faster doors, phrasebooks/language lessons, better music, bigger cab), and what "moving to a bigger hotel" means mechanically.
 - Language system depth: how many languages, how learning works (exposure vs buying), how guesses are scored.
 - Guest variety: archetypes, patience, VIPs, groups, multiple guests with different floors in one ride.
 - Art pipeline: asset sources (store packs vs Blender), characters and animation for guests.

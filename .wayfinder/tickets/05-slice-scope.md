@@ -3,7 +3,7 @@ title: What exactly is in the vertical slice?
 label: wayfinder:grilling
 status: open
 assignee:
-blocked_by: [01,02,03]
+blocked_by: [01,02,03,06]
 ---
 
 ## Question
