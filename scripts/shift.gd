@@ -25,11 +25,11 @@ const FARE := 2.0
 const MAX_TIP := 6.0
 const WAIT_TIP := 4.0 ## the most a guest tips for a quick pick-up alone
 const FULL_TIP_SHARE := 0.2 ## boarding within this share of a guest's patience earns the full wait tip
-const FRIENDLY_TIP := 2.0 ## a friendly reply adds this to the tip, up to MAX_TIP
-const RUDE_TIP_SHARE := 0.5 ## a rude reply leaves this share of the tip, rounded down
-const RUDE_COMPLAINT_CHANCE := 0.5 ## chance that a rude reply gets you a complaint
+const GOOD_REPLY_TIP := 2.0 ## a good reply to a guest's chat adds this to the tip, up to MAX_TIP
+const BAD_REPLY_TIP_SHARE := 0.5 ## a bad reply leaves this share of the tip, rounded down
+const BAD_REPLY_COMPLAINT_CHANCE := 0.5 ## chance that a bad reply gets you a complaint
 const START_STARS := 5.0
-const COMPLAINT := 0.5 ## stars lost for each complaint: a guest who gave up, waiting or riding, or a rude reply
+const COMPLAINT := 0.5 ## stars lost for each complaint: a guest who gave up, waiting or riding, or a bad reply
 const FIRED_BELOW := 2.0 ## stars
 
 ## Real seconds from 08:00 to 18:00.
@@ -42,7 +42,7 @@ var minutes := float(START)
 var spawned := 0
 var served := 0
 var lost := 0
-var rude_complaints := 0
+var reply_complaints := 0
 var fares := 0.0
 var tips := 0.0
 var wage := 0.0
@@ -110,14 +110,14 @@ static func tip_for_wait(wait: float, patience: float) -> float:
 	return roundf(WAIT_TIP * share)
 
 
-## The whole tip: the wait tip, raised by a friendly reply and cut by a rude one.
+## The whole tip: the wait tip, raised by a good reply to their chat and cut by a bad one.
 static func tip_for(wait: float, patience: float, reply: Guest.Reply) -> float:
 	var tip := tip_for_wait(wait, patience)
 	match reply:
-		Guest.Reply.FRIENDLY:
-			tip = minf(tip + FRIENDLY_TIP, MAX_TIP)
-		Guest.Reply.RUDE:
-			tip = floorf(tip * RUDE_TIP_SHARE)
+		Guest.Reply.GOOD:
+			tip = minf(tip + GOOD_REPLY_TIP, MAX_TIP)
+		Guest.Reply.BAD:
+			tip = floorf(tip * BAD_REPLY_TIP_SHARE)
 	return tip
 
 
@@ -144,12 +144,12 @@ func _on_gave_up(guest: Guest) -> void:
 
 
 func _on_replied(guest: Guest) -> void:
-	if guest.reply != Guest.Reply.RUDE or rng.randf() >= RUDE_COMPLAINT_CHANCE:
+	if guest.reply != Guest.Reply.BAD or rng.randf() >= BAD_REPLY_COMPLAINT_CHANCE:
 		return
-	rude_complaints += 1
+	reply_complaints += 1
 	stars = maxf(stars - COMPLAINT, 0.0)
 	stats_changed.emit()
-	announced.emit('Guest: "How rude! I\'ll be telling the manager."   Complaint: -%.1f star' % COMPLAINT)
+	announced.emit('Guest: "I\'ll be mentioning this to the manager."   Complaint: -%.1f star' % COMPLAINT)
 
 
 func _end() -> void:
