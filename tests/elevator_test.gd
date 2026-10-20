@@ -1,6 +1,6 @@
 extends "res://tests/scene_test.gd"
-## Headless scripted test of the cab's controls: lit buttons, queued floors, doors that
-## open by themselves at stops with more floors queued, and closing doors that reopen.
+## Headless scripted test of the cab's controls: lit buttons, queued floors, stops where
+## the cab waits for you, doors that never open by themselves, and closing doors that reopen.
 ##
 ## Run: godot --headless --path . --fixed-fps 60 --script tests/elevator_test.gd
 
@@ -25,10 +25,14 @@ func _test_queue_in_order() -> void:
 	_press("close")
 	_check(await _wait_until(func() -> bool: return _elevator._moving), "closing the doors sends the cab off")
 	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 1 and not _elevator._moving), "it stops at floor 1 first")
-	_check(await _wait_until(func() -> bool: return _elevator.is_open_at_rest()), "with 2 still queued, the doors open by themselves on floor 1")
 	_check(not _elevator.is_lit("1") and _elevator.is_lit("2"), "the 1 light goes out, 2 stays lit")
+	_check(_last_hint.contains("close to go on to floor 2"), "the HUD says how to go on (%s)" % _last_hint)
 	await _wait_seconds(3)
-	_check(_elevator.current_floor == 1 and _elevator.doors_open, "it waits on floor 1 until the doors are closed")
+	_check(_elevator.current_floor == 1 and not _elevator.doors_open and not _elevator._doors_busy, "it waits on floor 1 with the doors shut")
+	_press("open")
+	_check(await _wait_until(func() -> bool: return _elevator.is_open_at_rest()), "you open the doors yourself")
+	await _wait_seconds(2)
+	_check(_elevator.current_floor == 1, "it stays on floor 1 while the doors are open")
 
 	_press("close")
 	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 2 and not _elevator._moving), "after closing it goes on to floor 2")
@@ -44,10 +48,14 @@ func _test_stops_on_the_way() -> void:
 	_press("0")
 	_press("1")
 	_press("close")
-	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 1 and _elevator.is_open_at_rest()), "it stops at floor 1 on the way down")
+	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 1 and not _elevator._moving), "it stops at floor 1 on the way down")
 	_check(_elevator.queued_floors() == [0], "floor 0 is still queued")
-	_press("close")
-	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 0 and not _elevator._moving), "then it goes on to floor 0")
+	await _wait_seconds(1)
+	_check(_elevator.current_floor == 1 and not _elevator.doors_open, "it holds on floor 1 with the doors shut")
+	_press("close") # skip this stop without opening
+	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 0 and not _elevator._moving), "close without opening skips on to floor 0")
+	await _wait_seconds(1)
+	_check(not _elevator.doors_open, "the doors stay shut on floor 0 too")
 	_press("open")
 	await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
 

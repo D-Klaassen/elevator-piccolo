@@ -1,9 +1,9 @@
 class_name Elevator
 extends Node3D
 ## The elevator cab: walls, sliding doors, the button panel, the call panel and the floor indicator.
-## It only goes where its floor buttons send it. Floor presses queue up and stay lit; once
-## the doors are closed it rides to the next one. At a stop with more floors still queued the
-## doors open by themselves; at the last one they stay shut until you press open.
+## It only goes where its floor buttons send it, and the doors only move when you press
+## open or close. Floor presses queue up and stay lit; with the doors closed it rides to the
+## next one. At a stop with more floors queued it waits until you press close again.
 ## The door buttons stay lit until the doors have done what was asked.
 
 signal hint(text: String)
@@ -31,6 +31,7 @@ var _doors_target := true ## where the doors are headed: open (true) or closed (
 var _doors_moving_to := true
 var _door_tween: Tween
 var _queue: Array[int] = [] ## floors pressed and not reached yet, in the order they were pressed
+var _holding := false ## stopped on the way: waits for a close press before going on
 var _buttons := {} ## action -> ElevatorButton
 
 var _cab: AnimatableBody3D
@@ -225,6 +226,8 @@ func _request_doors(open: bool) -> void:
 		hint.emit("Not while moving!")
 		return
 	_doors_target = open
+	if not open:
+		_holding = false
 	if not open and door_blockers > 0:
 		hint.emit("Someone is in the doorway: the doors close once they're through.")
 	_update_button_lights()
@@ -237,7 +240,7 @@ func _physics_process(_delta: float) -> void:
 		elif not _doors_busy and _doors_target != doors_open:
 			if _doors_target or door_blockers == 0:
 				_set_doors(_doors_target, false)
-		elif not _doors_busy and not doors_open and not _queue.is_empty():
+		elif not _doors_busy and not doors_open and not _holding and not _queue.is_empty():
 			_move_to(_next_stop())
 	_update_button_lights()
 
@@ -281,9 +284,12 @@ func _arrive(target: int) -> void:
 	current_floor = target
 	_moving = false
 	_queue.erase(target)
-	_doors_target = not _queue.is_empty() # open by themselves only if the trip goes on
+	_holding = not _queue.is_empty()
 	_update_button_lights()
-	hint.emit("Ding! Floor %d." % target)
+	if _holding:
+		hint.emit("Ding! Floor %d. Press close to go on to floor %d." % [target, _next_stop()])
+	else:
+		hint.emit("Ding! Floor %d." % target)
 
 
 func _set_doors(open: bool, instant: bool) -> void:
