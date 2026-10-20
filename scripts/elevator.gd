@@ -204,7 +204,8 @@ func _build_call_panel() -> void:
 	_update_call_lamps(0.0)
 
 
-## What the upgrades add to the cab: the capacity plate and, once bought, the music box.
+## What the upgrades add to the cab: the capacity plate and, once bought, the music box (a
+## radio from Kenney's Furniture Kit, with speakers at the higher levels).
 func _build_fittings() -> void:
 	var panel_x := -(CAB_HALF_WIDTH - WALL / 2 - 0.02)
 	var plate := Greybox.label(_cab, "Max %d persons" % capacity, Vector3(panel_x, 0.8, 0.6), 90.0, 18)
@@ -212,12 +213,23 @@ func _build_fittings() -> void:
 	plate.modulate = Color(0.95, 0.9, 0.8)
 	if music_level == 0:
 		return
+	# A shelf high on the back wall: a radio, then a pair of speakers beside it, then a
+	# second pair on the side walls.
 	var music_box := Node3D.new()
 	music_box.name = "MusicBox"
-	music_box.position = Vector3(0, CAB_HEIGHT - 0.35, -(CAB_HALF_WIDTH - WALL / 2 - 0.1))
+	music_box.position = Vector3(0, CAB_HEIGHT - 0.6, -(CAB_HALF_WIDTH - WALL / 2 - 0.15))
 	_cab.add_child(music_box)
-	Greybox.box(music_box, Vector3(0.24 + 0.08 * music_level, 0.2, 0.14), Vector3.ZERO, Color(0.2, 0.14, 0.1), false)
-	var note := Greybox.label(music_box, "♪".repeat(music_level), Vector3(0, 0, 0.075), 0.0, 40)
+	Greybox.box(music_box, Vector3(1.3, 0.04, 0.3), Vector3(0, -0.02, 0), Color(0.35, 0.24, 0.15), false)
+	Decor.put(music_box, "radio", Vector3.ZERO)
+	if music_level >= 2:
+		for x in [-0.5, 0.5]:
+			Decor.put(music_box, "speakerSmall", Vector3(x, 0, 0))
+	if music_level >= 3:
+		for side in [-1.0, 1.0]:
+			var shelf_x: float = side * (CAB_HALF_WIDTH - WALL / 2 - 0.12)
+			Greybox.box(music_box, Vector3(0.24, 0.04, 0.3), Vector3(shelf_x, -0.02, 0.6), Color(0.35, 0.24, 0.15), false)
+			Decor.put(music_box, "speakerSmall", Vector3(shelf_x, 0, 0.6), -90.0 * side)
+	var note := Greybox.label(music_box, "♪".repeat(music_level), Vector3(0, -0.12, 0.16), 0.0, 40)
 	note.modulate = Color(1, 0.85, 0.4)
 
 
