@@ -9,3 +9,5 @@ blocked_by: []
 ## Question
 
 Rating threshold to unlock, and what the next hotel adds: more floors, more languages, guest types, faster spawn, higher fares.
+
+Also settle: can a new hotel's elevator come with music built in (see the upgrades ticket)?
