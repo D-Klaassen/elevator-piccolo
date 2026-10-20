@@ -8,7 +8,6 @@ extends "res://tests/scene_test.gd"
 func _run() -> void:
 	_test_rules()
 	_shift.spawning = false
-	_guests.chat_chance = 0.0 # chats have their own test, until the full shift
 	await _test_clock()
 	await _test_patience()
 	await _test_pay()
@@ -130,8 +129,8 @@ func _test_end_and_play_again() -> void:
 
 
 func _test_full_shift() -> void:
-	# The autopilot answers calls and delivers riders, nearest floor first, and gives
-	# the good reply to every chat.
+	# The autopilot answers calls and delivers riders, nearest floor first,. Chats are off by
+	# default, so nobody should chat.
 	_shift.spawning = true
 	var temperaments := {}
 	var first := {} # floor and clock time of the first guest
@@ -161,7 +160,7 @@ func _test_full_shift() -> void:
 	_check(_shift.spawned == Shift.GUESTS, "all %d guests turned up (%d)" % [Shift.GUESTS, _shift.spawned])
 	_check(_shift.served + _shift.lost == _shift.spawned, "every guest was served or gave up (%d + %d)" % [_shift.served, _shift.lost])
 	_check(_shift.served >= Shift.GUESTS / 2, "the autopilot serves most guests (%d)" % _shift.served)
-	_check(chats[0] > 0 and chats[0] < _shift.served, "some guests chat, not all (%d of %d)" % [chats[0], _shift.served])
+	_check(chats[0] == 0, "chats are off: nobody chats (%d)" % chats[0])
 	_check(temperaments.size() >= 2, "guests come with different temperaments (%s)" % [temperaments.keys()])
 	_check(is_equal_approx(_shift.money(), _shift.fares + _shift.tips + Shift.WAGE), "money adds up: €%.2f" % _shift.money())
 	_check(_shift.stars == Shift.START_STARS - Shift.COMPLAINT * _shift.lost, "stars: %.1f" % _shift.stars)

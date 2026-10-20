@@ -26,8 +26,8 @@ const CHAT_DELAY_MAX := 6.0
 
 ## Multiplies every guest's patience. Upgrades (music and the like) will raise it.
 @export var patience_scale := 1.0
-## Share of guests who strike up a chat during the ride.
-@export var chat_chance := 0.4
+## Share of guests who strike up a chat during the ride. Off for now: answering felt clunky.
+@export var chat_chance := 0.0
 
 var elevator: Elevator
 var rng := RandomNumberGenerator.new()
