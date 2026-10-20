@@ -8,6 +8,12 @@ extends Node3D
 ## Every floor has landing doors in the hallway's opening, which open and close with the
 ## cab's doors on the floor the cab is at and stay shut everywhere else, and a call button
 ## beside them: from the hallway it brings the cab to you and opens up when it gets there.
+##
+## The doors move like a real elevator's: centre-opening, with two panels a side that
+## telescope (the leading panel travels twice as far, so they end up stacked); they speed
+## up, glide and ease into the wall when opening, and slow to a creep before they meet when
+## closing. The cab's doors lead and pick up the landing doors a moment later. A chime rings
+## on arrival: once going up, twice going down.
 
 signal hint(text: String)
 
@@ -20,10 +26,24 @@ const DOOR_HEIGHT := 2.1
 const DOOR_OPENING := 1.0
 const WALL := 0.1
 const SPEED := 0.7 ## metres per second: about 5 s per floor
-const DOOR_TIME := 0.8 ## seconds, with the standard doors
+const DOOR_TIME := 1.2 ## seconds the standard doors take to open
+const CLOSE_SLOWER := 1.3 ## closing takes this many times as long as opening
+const PANEL_WIDTH := DOOR_OPENING / 4 ## two panels a side
+const PANEL_THICKNESS := 0.04
+const LANDING_TUCK := 0.03 ## metres open landing doors slide past the opening's edge, into the wall
+## Share of the way the cab's doors go before they pick up the landing doors.
+const LANDING_LAG := 0.06
+const ARRIVAL_PAUSE := 0.6 ## seconds between the chime and the doors opening by themselves
+## How fast the doors move over the course of opening and of closing, as [time, speed]
+## points with straight lines between them (both from 0 to 1, the speed relative): opening
+## speeds up, glides and eases into the wall; closing glides, slows to a creep and stops
+## when the doors meet.
+const OPENING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.25, 1), Vector2(0.6, 1), Vector2(1, 0)]
+const CLOSING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.2, 1), Vector2(0.55, 1), Vector2(0.78, 0.15), Vector2(1, 0.15)]
 
 @export var floor_count := 3
-## Seconds the doors take to open or close. Faster doors lower it.
+## Seconds the doors take to open; closing takes [constant CLOSE_SLOWER] times as long.
+## Faster doors lower it.
 @export var door_time := DOOR_TIME
 ## Level of the music upgrade: 0 is a silent cab, from 1 a music box hangs on the back wall.
 @export var music_level := 0
@@ -40,6 +60,8 @@ var current_floor := 0
 var doors_open := true
 var door_blockers := 0 ## guests in the doorway; the doors won't close while this is above 0
 var dings := 0 ## how many times the call bell rang
+var chimes := 0 ## how many arrival chimes rang (one going up, two going down)
+var door_amount := 1.0 ## how far open the cab's doors are: 0 shut, 1 open
 var _moving := false
 var _doors_busy := false
 var _doors_target := true ## where the doors are headed: open (true) or closed (false)
@@ -52,14 +74,17 @@ var _buttons := {} ## action -> ElevatorButton
 var _call_buttons: Array[ElevatorButton] = [] ## per floor, in the hallway
 
 var _cab: AnimatableBody3D
-var _left_door: AnimatableBody3D
-var _right_door: AnimatableBody3D
-var _landing_doors: Array[Array] = [] ## per floor: [left, right]
+## The cab's door panels: left leading, left trailing, right leading, right trailing.
+var _door_panels: Array[AnimatableBody3D] = []
+var _landing_doors: Array[Array] = [] ## per floor: its panels, in the same order
+var _door_from := 1.0 ## door_amount when the doors started moving
+var _door_to := 1.0
 var _indicator: Label3D
 var _call_lamps: Array[MeshInstance3D] = []
 var _call_states: Array[CallLamp] = []
 var _blink_time := 0.0
 var _ding_player: AudioStreamPlayer
+var _chime_player: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -74,6 +99,9 @@ func _ready() -> void:
 	# Keep ringing through the end-of-shift pause: a paused ding never finishes and leaks at quit.
 	_ding_player.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_ding_player)
+	_chime_player = AudioStreamPlayer.new()
+	_chime_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_chime_player)
 	_set_doors(true, true)
 
 
@@ -117,6 +145,21 @@ func _update_call_lamps(delta: float) -> void:
 		mat.albedo_color = Color(1, 0.35, 0.2) if lit else Color(0.2, 0.15, 0.12)
 		mat.emission_enabled = lit
 		mat.emission = Color(1, 0.3, 0.1)
+
+
+func _open_for_caller() -> void:
+	if not _moving:
+		_doors_target = true
+		_update_button_lights()
+
+
+## The arrival chime: one tone going up, two going down.
+func _chime(going_down: bool) -> void:
+	chimes += 2 if going_down else 1
+	# The headless (Dummy) audio driver never finishes a sound, which leaks it at quit.
+	if AudioServer.get_driver_name() != "Dummy":
+		_chime_player.stream = _make_chime(going_down)
+		_chime_player.play()
 
 
 func ding() -> void:
@@ -163,20 +206,48 @@ func _build_cab() -> void:
 	_indicator.modulate = Color(1, 0.4, 0.2)
 
 
+## The cab's door panels, just inside its front wall: the trailing panels nearest the wall,
+## the leading ones in front of them.
 func _build_doors() -> void:
-	_left_door = _make_door("LeftDoor")
-	_right_door = _make_door("RightDoor")
+	var trail_z := CAB_HALF_WIDTH - WALL / 2 - 0.005 - PANEL_THICKNESS / 2
+	_door_panels = _make_panels(_cab, trail_z - PANEL_THICKNESS - 0.005, trail_z)
 
 
-func _make_door(door_name: String, parent: Node3D = null) -> AnimatableBody3D:
-	var door := AnimatableBody3D.new()
-	door.name = door_name
-	# Synced to physics, a door's collision only follows its own moves, not the cab's: after
-	# a ride it stayed on the floor you left, and you walked through the shut doors.
-	door.sync_to_physics = false
-	(parent if parent else _cab).add_child(door)
-	Greybox.box(door, Vector3(DOOR_OPENING / 2, DOOR_HEIGHT, 0.05), Vector3.ZERO, Color.WHITE, true, Interior.flat(Interior.STEEL, 0.6))
-	return door
+## Four door panels under [param parent]: left leading, left trailing, right leading, right
+## trailing, the leading ones at z = [param lead_z] and the trailing ones at [param trail_z].
+func _make_panels(parent: Node3D, lead_z: float, trail_z: float) -> Array[AnimatableBody3D]:
+	var panels: Array[AnimatableBody3D] = []
+	for side in ["Left", "Right"]:
+		for lead in [true, false]:
+			var panel := AnimatableBody3D.new()
+			panel.name = "%sDoor%s" % [side, "Leading" if lead else "Trailing"]
+			# Synced to physics, a door's collision only follows its own moves, not the cab's:
+			# after a ride it stayed on the floor you left, and you walked through the shut doors.
+			panel.sync_to_physics = false
+			panel.position.z = lead_z if lead else trail_z
+			parent.add_child(panel)
+			Greybox.box(panel, Vector3(PANEL_WIDTH, DOOR_HEIGHT, PANEL_THICKNESS), Vector3.ZERO, Color.WHITE, true, Interior.flat(Interior.STEEL, 0.6))
+			panels.append(panel)
+	return panels
+
+
+## Puts [param panels] (as from [method _make_panels]) [param amount] of the way open:
+## shut, the four side by side across the opening; open, each side's pair stacked beside
+## it, [param tuck] further in.
+static func _place_panels(panels: Array, amount: float, tuck := 0.0) -> void:
+	for i in panels.size():
+		var side := -1.0 if i < 2 else 1.0
+		var lead := i % 2 == 0
+		var shut_x := PANEL_WIDTH * (0.5 if lead else 1.5)
+		var travel := PANEL_WIDTH * (2.0 if lead else 1.0) + tuck
+		var panel: Node3D = panels[i]
+		panel.position.x = side * (shut_x + travel * amount)
+		panel.position.y = DOOR_HEIGHT / 2
+
+
+## The cab's door panels.
+func door_panels() -> Array[AnimatableBody3D]:
+	return _door_panels
 
 
 ## Every floor's landing doors, in the opening of its landing wall (they slide into the
@@ -187,17 +258,21 @@ func _build_landings() -> void:
 		landing.name = "Landing%d" % f
 		landing.position = Vector3(0, f * FLOOR_HEIGHT, 0)
 		add_child(landing)
-		_landing_doors.append([_make_door("LeftDoor", landing), _make_door("RightDoor", landing)])
+		# Inside the landing wall: the leading panels on the shaft side, the trailing ones on
+		# the hallway side.
+		var offset := PANEL_THICKNESS / 2 + 0.0025
+		_landing_doors.append(_make_panels(landing, landing_z - offset, landing_z + offset))
 
 		var hall_face := landing_z + WALL / 2
 		var plate_at := Vector3(DOOR_OPENING / 2 + 0.3, 1.25, hall_face + 0.005)
-		Greybox.box(landing, Vector3(0.16, 0.22, 0.01), plate_at, Color.WHITE, false, Interior.flat(Interior.BRASS, 0.2))
+		# A plain yellow button on a dark plate, like the cab's.
+		Greybox.box(landing, Vector3(0.16, 0.22, 0.01), plate_at, Color(0.15, 0.13, 0.12), false)
 		var button := ElevatorButton.new()
 		button.name = "CallButton"
 		button.position = plate_at + Vector3(0, 0, 0.025)
 		button.rotation_degrees.y = -90.0 # its face (+X) towards the hallway (+Z)
 		landing.add_child(button)
-		button.setup("call %d" % f, "Call the elevator", "Call")
+		button.setup("call %d" % f, "Call the elevator", "")
 		button.pressed.connect(_on_call_pressed.bind(f))
 		_call_buttons.append(button)
 
@@ -280,6 +355,29 @@ func _build_fittings() -> void:
 			Decor.put(music_box, "speakerSmall", Vector3(shelf_x, 0, 0.6), -90.0 * side)
 	var note := Greybox.label(music_box, "♪".repeat(music_level), Vector3(0, -0.12, 0.16), 0.0, 40)
 	note.modulate = Color(1, 0.85, 0.4)
+
+
+## A soft hall-lantern chime, generated like the ding: one tone, or a high and a lower one
+## for [param going_down].
+static func _make_chime(going_down: bool) -> AudioStreamWAV:
+	var rate := 22050
+	var tones: Array[float] = [784.0, 659.3] if going_down else [784.0] # G5, then E5
+	var gap := int(rate * 0.45)
+	var length := gap * (tones.size() - 1) + int(rate * 1.2)
+	var data := PackedByteArray()
+	data.resize(length * 2)
+	for i in length:
+		var v := 0.0
+		for n in tones.size():
+			var t := float(i - n * gap) / rate
+			if t >= 0.0:
+				v += (sin(TAU * tones[n] * t) + 0.2 * sin(TAU * tones[n] * 2.0 * t)) * exp(-3.0 * t) * 0.35
+		data.encode_s16(i * 2, int(clampf(v, -1.0, 1.0) * 32767))
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = rate
+	wav.data = data
+	return wav
 
 
 ## A short bell tone, generated so the project needs no audio files.
@@ -407,6 +505,7 @@ func _process(delta: float) -> void:
 
 
 func _arrive(target: int) -> void:
+	_chime(target < current_floor)
 	current_floor = target
 	_moving = false
 	_queue.erase(target)
@@ -415,7 +514,8 @@ func _arrive(target: int) -> void:
 	# Wait for a close press before going on, unless someone is waiting in a hallway.
 	_holding = not _queue.is_empty() and _hall_calls.is_empty()
 	if called:
-		_doors_target = true # whoever called is waiting outside
+		# Whoever called is waiting outside: open up once the chime has rung.
+		get_tree().create_timer(ARRIVAL_PAUSE, false, true).timeout.connect(_open_for_caller)
 	_update_button_lights()
 	if _holding:
 		hint.emit("Ding! Floor %d. Press close to go on to floor %d." % [target, _next_stop()])
@@ -426,17 +526,10 @@ func _arrive(target: int) -> void:
 ## Opens or closes the cab's doors, and with them the landing doors of the floor it's at.
 ## The other floors' landing doors stay shut.
 func _set_doors(open: bool, instant: bool) -> void:
-	var quarter := DOOR_OPENING / 4
-	var left_x := -DOOR_OPENING / 2 - quarter if open else -quarter
-	var right_x := DOOR_OPENING / 2 + quarter if open else quarter
-	var y := DOOR_HEIGHT / 2
 	if instant:
-		_left_door.position = Vector3(left_x, y, CAB_HALF_WIDTH - WALL)
-		_right_door.position = Vector3(right_x, y, CAB_HALF_WIDTH - WALL)
 		for f in floor_count:
-			var here := f == current_floor
-			_landing_doors[f][0].position = Vector3(left_x if here else -quarter, y, landing_z)
-			_landing_doors[f][1].position = Vector3(right_x if here else quarter, y, landing_z)
+			_place_panels(_landing_doors[f], 0.0)
+		_show_doors(1.0 if open else 0.0)
 		doors_open = open
 		return
 
@@ -444,15 +537,47 @@ func _set_doors(open: bool, instant: bool) -> void:
 		_door_tween.kill()
 	_doors_busy = true
 	_doors_moving_to = open
+	_door_from = door_amount
+	_door_to = 1.0 if open else 0.0
 	# Reopening halfway takes only the time needed for the rest of the way.
-	var time := door_time * absf(_left_door.position.x - left_x) / (DOOR_OPENING / 2)
-	_door_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS).set_parallel()
-	var landing: Array = _landing_doors[current_floor]
-	for door: Node3D in [_left_door, landing[0]]:
-		_door_tween.tween_property(door, "position:x", left_x, time)
-	for door: Node3D in [_right_door, landing[1]]:
-		_door_tween.tween_property(door, "position:x", right_x, time)
-	_door_tween.chain().tween_callback(_doors_done.bind(open))
+	var time := door_time * (1.0 if open else CLOSE_SLOWER) * absf(_door_to - _door_from)
+	_door_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	_door_tween.tween_method(_step_doors, 0.0, 1.0, time)
+	_door_tween.tween_callback(_doors_done.bind(open))
+
+
+## Moves the doors [param t] of the way through their current opening or closing, along
+## that one's speed curve.
+func _step_doors(t: float) -> void:
+	var curve := OPENING_SPEED if _door_to > _door_from else CLOSING_SPEED
+	_show_doors(lerpf(_door_from, _door_to, travelled(curve, t)))
+
+
+## Puts the cab's doors [param amount] of the way open, and the landing doors here with
+## them, a little behind: the cab's doors pick them up once they've gone [constant
+## LANDING_LAG] of the way. Open landing doors slide a little further, into the wall, so
+## their edges don't sit flush with the opening's sides and flicker through them.
+func _show_doors(amount: float) -> void:
+	door_amount = amount
+	_place_panels(_door_panels, amount)
+	var landing := clampf((amount - LANDING_LAG) / (1.0 - LANDING_LAG), 0.0, 1.0)
+	_place_panels(_landing_doors[current_floor], landing, LANDING_TUCK)
+
+
+## How far along a move with speed curve [param curve] (see [constant OPENING_SPEED]) the
+## doors are at time [param t], both from 0 to 1: the area under the curve so far.
+static func travelled(curve: Array[Vector2], t: float) -> float:
+	var done := 0.0
+	var total := 0.0
+	for i in curve.size() - 1:
+		var a := curve[i]
+		var b := curve[i + 1]
+		total += (b.x - a.x) * (a.y + b.y) / 2
+		if t > a.x:
+			var end := minf(t, b.x)
+			var speed_at_end := lerpf(a.y, b.y, (end - a.x) / (b.x - a.x))
+			done += (end - a.x) * (a.y + speed_at_end) / 2
+	return clampf(done / total, 0.0, 1.0)
 
 
 func _doors_done(open: bool) -> void:

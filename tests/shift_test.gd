@@ -101,9 +101,13 @@ func _test_ride_patience() -> void:
 	await _wait_until(func() -> bool: return f.state == Guest.State.RIDING)
 	var lost := _shift.lost
 	var money := _shift.money()
-	await _ride_to(2)
-	_check(f.fed_up and _shift.lost == lost + 1, "a guest who rides too long complains")
+	_press("2")
+	_press("close")
+	_check(await _wait_until(func() -> bool: return f.fed_up), "on the way up")
+	_check(_shift.lost == lost + 1, "a guest who rides too long complains")
 	_check(f.bubble_text().contains("next stop") and _last_said.contains("next stop"), "they want out at the next stop (%s)" % f.bubble_text())
+	await _wait_until(func() -> bool: return _elevator.current_floor == 2 and not _elevator._moving)
+	_press("open")
 	_check(await _wait_until(_gone(f)), "they get out on floor 2, not their floor, and disappear")
 	_check(_shift.money() == money and _shift.served == 2, "a fed-up rider pays nothing")
 
