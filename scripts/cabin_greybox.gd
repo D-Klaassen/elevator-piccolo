@@ -147,6 +147,11 @@ func _build_landing(f: int) -> void:
 	var sign_label := Greybox.label(self, sign_text, Vector3(0, y + 2.0, back - 0.06), 180.0, 96 if places.is_empty() else 72)
 	sign_label.modulate = Color(0.2, 0.15, 0.1)
 
+	var furniture := Node3D.new()
+	furniture.name = "Furniture%d" % f
+	add_child(furniture)
+	Decor.furnish(furniture, "" if places.is_empty() else places[f], y)
+
 	var light := OmniLight3D.new()
 	light.position = Vector3(0, y + wall_h - 0.4, front + HALL_DEPTH / 2)
 	light.omni_range = 5.0
