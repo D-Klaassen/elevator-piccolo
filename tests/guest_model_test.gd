@@ -12,6 +12,7 @@ func _run() -> void:
 	_test_variety()
 	await _test_animations()
 	await _test_giving_up()
+	await _test_nearest_bubble_on_top()
 
 
 func _test_variety() -> void:
@@ -62,6 +63,23 @@ func _test_giving_up() -> void:
 	g.waited = g.patience
 	_check(await _wait_until(func() -> bool: return g.animation == Guest.HEAD_SHAKE), "a guest who gives up shakes their head")
 	_check(await _wait_until(func() -> bool: return g.animation == Guest.WALK), "and then walks off")
+
+
+func _test_nearest_bubble_on_top() -> void:
+	# Two guests talk at once in the open cab; the nearer one's bubble covers the other's.
+	var near := _guests.spawn_guest(0, 1)
+	var far := _guests.spawn_guest(0, 2)
+	far.say("Floor 2, please.")
+	near.say("Floor 1, please.")
+	for i in 3:
+		near.global_position = Vector3(0.3, 0, 1.0)
+		far.global_position = Vector3(-0.5, 0, 3.0)
+		await process_frame
+	_check(near._bubble.visible and far._bubble.visible, "both bubbles show")
+	_check(near._bubble.render_priority > far._bubble.render_priority,
+			"the nearer guest's bubble draws on top (%d over %d)" % [near._bubble.render_priority, far._bubble.render_priority])
+	_remove(near)
+	_remove(far)
 
 
 func _remove(g: Guest) -> void:
