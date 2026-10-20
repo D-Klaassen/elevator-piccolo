@@ -99,19 +99,21 @@ func _test_cab() -> void:
 	for child in cab.get_children():
 		if child is MeshInstance3D and ((child.mesh as BoxMesh).material as StandardMaterial3D).albedo_texture:
 			patterned += 1
-	_check(patterned == 8, "the cab's floor, ceiling and walls are patterned (%d of 8)" % patterned)
+	# Floor, ceiling, back and side walls, the front wall in three and the inner front wall in three.
+	_check(patterned == 11, "the cab's floor, ceiling and walls are patterned (%d of 11)" % patterned)
 	var lit := trim.get_children().filter(func(m: Node) -> bool: return m is MeshInstance3D and ((m.mesh as BoxMesh).material as StandardMaterial3D).emission_enabled)
 	_check(lit.size() == 1, "there's a light in its ceiling")
 
 	var inner := Elevator.CAB_HALF_WIDTH - Elevator.WALL / 2
+	var front := Elevator.CAB_SKIN_Z - Elevator.SKIN / 2 # the inner front wall's face
 	var rails := 0
 	for mesh: MeshInstance3D in trim.get_children():
 		var box: AABB = mesh.transform * mesh.get_aabb()
-		var flat_on_wall := box.position.z < -inner + FLUSH or box.position.x < -inner + FLUSH or box.end.x > inner - FLUSH
+		var flat_on_wall := box.position.z < -inner + FLUSH or box.position.x < -inner + FLUSH or box.end.x > inner - FLUSH or box.end.z > front - FLUSH
 		var overhead := box.position.y > Elevator.CAB_HEIGHT - 0.1
 		if not (flat_on_wall or overhead):
 			_check(false, "cab trim at %s is flat against a wall or overhead" % box.get_center())
-		var in_doorway := box.end.z > Elevator.CAB_HALF_WIDTH - Elevator.WALL - 0.03 and absf(box.get_center().x) < Elevator.DOOR_OPENING # where the doors slide
+		var in_doorway := box.end.z > front + 0.001 # between the front walls, where the doors slide
 		if in_doorway and box.position.y < Elevator.DOOR_HEIGHT:
 			_check(false, "cab trim at %s is clear of the doors" % box.get_center())
 		if is_equal_approx(box.get_center().y, Interior.HANDRAIL_HEIGHT) and maxf(box.size.x, box.size.z) > 1.0:
