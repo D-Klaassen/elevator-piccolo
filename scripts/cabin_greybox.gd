@@ -30,6 +30,9 @@ var _floors: int
 
 
 func _ready() -> void:
+	if Benchmark.requested() and not Benchmark.active:
+		Benchmark.begin(self) # sets up its own career and loads the scene again
+		return
 	_career = Career.load_saved()
 	_settings = Settings.load_saved()
 	_settings.apply_volume()
@@ -90,6 +93,8 @@ func _ready() -> void:
 		_show_hint("Your shift starts. Guests call from the hallways: watch the Calls lamps on your right.")
 	else:
 		_show_hint("Your shift starts. A ding means a guest is calling: find out on which floor.")
+	if Benchmark.active:
+		add_child(Benchmark.new())
 
 
 func _build_environment() -> void:
