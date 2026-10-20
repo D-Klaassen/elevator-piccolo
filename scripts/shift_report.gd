@@ -1,8 +1,9 @@
 class_name ShiftReport
 extends PanelContainer
-## The end-of-shift screen: how the day went, and a button to play the shift again.
+## The end-of-shift screen: how the day went, the bank balance and the recent ratings,
+## and a button to go on to the next shift (or, when you were fired, to try this one again).
 
-signal play_again
+signal continued
 
 var _title: Label
 var _lines: Label
@@ -35,15 +36,15 @@ func _ready() -> void:
 	box.add_child(_lines)
 
 	_button = Button.new()
-	_button.name = "PlayAgain"
-	_button.text = "Play the shift again"
-	_button.pressed.connect(play_again.emit)
+	_button.name = "Continue"
+	_button.pressed.connect(continued.emit)
 	box.add_child(_button)
 	hide()
 
 
-func show_for(shift: Shift) -> void:
-	_title.text = "You're fired!" if shift.is_fired() else "Shift over"
+## Shows how [param shift] went; [param career] already has it recorded.
+func show_for(shift: Shift, career: Career) -> void:
+	_title.text = "You're fired!" if shift.is_fired() else "Shift %d over" % career.shifts_done
 	_lines.text = "\n".join([
 		"Guests served: %d" % shift.served,
 		"Guests who took the stairs: %d" % shift.lost,
@@ -54,7 +55,15 @@ func show_for(shift: Shift) -> void:
 		"Wage: €%.2f" % shift.wage,
 		"Total: €%.2f" % shift.money(),
 		"",
-		"Hotel rating: %.1f ★" % shift.stars,
+		"Hotel rating: %.1f ★   %s: %.1f ★" % [shift.stars, _average_label(career), career.average_rating()],
+		"Bank balance: €%.2f" % career.balance,
 	])
+	_button.text = "Play the shift again" if shift.is_fired() else "Next shift"
 	show()
 	_button.grab_focus()
+
+
+func _average_label(career: Career) -> String:
+	if career.ratings.size() < Career.AVERAGE_OVER:
+		return "average so far"
+	return "last %d shifts" % Career.AVERAGE_OVER
