@@ -10,6 +10,7 @@ signal bought(id: String)
 signal moved
 signal finished
 signal started
+signal settings_opened
 
 var _career: Career
 var _title: Label
@@ -59,6 +60,12 @@ func _ready() -> void:
 	_start.text = "Start the shift"
 	_start.pressed.connect(started.emit)
 	box.add_child(_start)
+
+	var settings := Button.new()
+	settings.name = "Settings"
+	settings.text = "Settings"
+	settings.pressed.connect(settings_opened.emit)
+	box.add_child(settings)
 	hide()
 
 

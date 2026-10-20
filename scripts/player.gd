@@ -1,12 +1,16 @@
 class_name Player
 extends CharacterBody3D
 ## First-person player: WASD to walk, mouse to look, click to press (or talk to) what you look at.
+## Esc opens the pause menu ([SettingsMenu]), which frees the mouse.
 
 signal looking_at_changed(text: String)
 
 const SPEED := 2.5
 const MOUSE_SENSITIVITY := 0.002
 const REACH := 2.0
+
+## Multiplies [constant MOUSE_SENSITIVITY]; set from [member Settings.mouse_sensitivity].
+var mouse_sensitivity := 1.0
 
 var _camera: Camera3D
 var _ray: RayCast3D
@@ -56,16 +60,14 @@ func _setup_inputs() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * MOUSE_SENSITIVITY)
-		_camera.rotate_x(-event.relative.y * MOUSE_SENSITIVITY)
+		rotate_y(-event.relative.x * MOUSE_SENSITIVITY * mouse_sensitivity)
+		_camera.rotate_x(-event.relative.y * MOUSE_SENSITIVITY * mouse_sensitivity)
 		_camera.rotation.x = clampf(_camera.rotation.x, -1.4, 1.4)
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		elif _looking_at and _looking_at.has_method("press"):
 			_looking_at.press()
-	elif event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _physics_process(delta: float) -> void:

@@ -10,7 +10,9 @@ A Steam game about an elevator bellhop (piccolo): greet guests, figure out their
 2. Open Godot, choose **Import**, and select `project.godot` in this folder. Or from a terminal: `godot --path . --editor`.
 3. Press **F5** (Run Project). To play without the editor: `godot --path .`
 
-Controls: **WASD** to walk, **mouse** to look, **left click** to press the button or talk to the guest you're looking at, **Esc** to free the mouse (click again to recapture).
+Controls: **WASD** to walk, **mouse** to look, **left click** to press the button or talk to the guest you're looking at, **Esc** to pause.
+
+Pausing opens the **settings**: a volume slider (0 mutes the game) and a mouse sensitivity slider (×0.25 to ×3). They take effect and are saved straight away, in `user://settings.cfg`, apart from the career. **Resume** or Esc again goes back to the shift; **Quit the game** quits without saving the shift in progress. The staff room has a **Settings** button for the same panel. The settings live in `scripts/settings.gd`, the panel in `scripts/settings_menu.gd`.
 
 ### What's in it so far
 
@@ -32,7 +34,7 @@ Pension Bellevue is as far as the demo goes. Its staff room offers the **Grand H
 
 ## Tests
 
-Headless scripted tests drive the cab through its own buttons. `elevator_test` covers the lit buttons and the floor queue; `guest_loop_test` serves three guests in a row; `chat_test` covers chats, the shuffled reply choices and how each reply changes the tip; `shift_test` covers the clock, patience, pay and the end-of-shift report, then plays a whole shift with an autopilot; `career_test` carries the balance and the ratings through the save over four shifts; `staff_room_test` buys upgrades and checks what each one changes in the next shift; `hotel_test` moves up to Pension Bellevue and plays a ride there; `spanish_test` covers what you catch of Spanish per lesson, the speech bubble, asking again and buying lessons; `end_screen_test` applies to the Grand Hotel from Pension Bellevue and checks the end screen. The tests save the career to a temporary file, never to your real save. Run them all with the runner, which exits with 1 if any test fails:
+Headless scripted tests drive the cab through its own buttons. `elevator_test` covers the lit buttons and the floor queue; `guest_loop_test` serves three guests in a row; `chat_test` covers chats, the shuffled reply choices and how each reply changes the tip; `shift_test` covers the clock, patience, pay and the end-of-shift report, then plays a whole shift with an autopilot; `career_test` carries the balance and the ratings through the save over four shifts; `staff_room_test` buys upgrades and checks what each one changes in the next shift; `hotel_test` moves up to Pension Bellevue and plays a ride there; `spanish_test` covers what you catch of Spanish per lesson, the speech bubble, asking again and buying lessons; `end_screen_test` applies to the Grand Hotel from Pension Bellevue and checks the end screen; `settings_test` pauses with Esc, moves the sliders and checks they are saved and used in the next shift. The tests save the career and the settings to temporary files, never to your own. Run them all with the runner, which exits with 1 if any test fails:
 
 ```bash
 tests/run.sh

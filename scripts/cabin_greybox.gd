@@ -4,6 +4,7 @@ extends Node3D
 ## guests, the shift and a minimal HUD.
 ## Every shift loads the saved career, fits the cab with the upgrades bought, and saves the
 ## career again once the shift is over. Between shifts you go through the staff room.
+## Esc pauses the shift and opens the settings.
 
 const HALL_WIDTH := 6.0
 const HALL_DEPTH := 4.0
@@ -17,6 +18,9 @@ var _stats_label: Label
 var _report: ShiftReport
 var _staff_room: StaffRoom
 var _end_screen: EndScreen
+var _settings_menu: SettingsMenu
+var _settings: Settings
+var _player: Player
 var _replies: ReplyChoices
 var _hint_timer: SceneTreeTimer
 var _shift: Shift
@@ -26,6 +30,8 @@ var _floors: int
 
 func _ready() -> void:
 	_career = Career.load_saved()
+	_settings = Settings.load_saved()
+	_settings.apply_volume()
 	var hotel := _career.hotel_info()
 	_floors = hotel.floors
 	_build_environment()
@@ -61,7 +67,9 @@ func _ready() -> void:
 	player.name = "Player"
 	player.position = Vector3(0, 0.05, -0.3)
 	player.rotation_degrees.y = 180.0 # face the doors (+Z)
+	player.mouse_sensitivity = _settings.mouse_sensitivity
 	add_child(player)
+	_player = player
 
 	_build_hud()
 	elevator.hint.connect(_show_hint)
@@ -215,6 +223,15 @@ func _build_hud() -> void:
 	_end_screen.back.connect(_on_continued)
 	hud.add_child(_end_screen)
 
+	_settings_menu = SettingsMenu.new()
+	_settings_menu.name = "SettingsMenu"
+	_settings_menu.settings = _settings
+	_settings_menu.pause_requested.connect(_on_pause_requested)
+	_settings_menu.changed.connect(_on_settings_changed)
+	_settings_menu.closed.connect(_on_settings_closed)
+	_staff_room.settings_opened.connect(_on_staff_room_settings)
+	hud.add_child(_settings_menu)
+
 
 func _on_looking_at_changed(text: String) -> void:
 	_looking_label.text = text
@@ -262,6 +279,30 @@ func _on_bought(_id: String) -> void:
 func _on_started() -> void:
 	get_tree().paused = false
 	get_tree().reload_current_scene()
+
+
+func _on_pause_requested() -> void:
+	get_tree().paused = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_settings_menu.open(true)
+
+
+func _on_staff_room_settings() -> void:
+	_staff_room.hide()
+	_settings_menu.open(false)
+
+
+func _on_settings_changed() -> void:
+	_player.mouse_sensitivity = _settings.mouse_sensitivity
+
+
+## Back to the staff room if it opened the menu, otherwise back to the shift.
+func _on_settings_closed() -> void:
+	if _shift.is_over:
+		_staff_room.show_for(_career)
+		return
+	get_tree().paused = false
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _save_career() -> void:
