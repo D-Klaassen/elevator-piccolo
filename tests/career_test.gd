@@ -3,7 +3,7 @@ extends "res://tests/scene_test.gd"
 ## star ratings, through the save file and a reload of the scene, over four shifts with
 ## one firing in between.
 ##
-## Run: godot --headless --path . --fixed-fps 60 --script tests/career_test.gd
+## Run: tests/run.sh career_test
 
 
 func _run() -> void:

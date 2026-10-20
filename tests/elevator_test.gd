@@ -2,7 +2,7 @@ extends "res://tests/scene_test.gd"
 ## Headless scripted test of the cab's controls: lit buttons, queued floors, stops where
 ## the cab waits for you, doors that never open by themselves, and closing doors that reopen.
 ##
-## Run: godot --headless --path . --fixed-fps 60 --script tests/elevator_test.gd
+## Run: tests/run.sh elevator_test
 
 
 func _run() -> void:

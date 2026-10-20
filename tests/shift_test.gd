@@ -2,12 +2,13 @@ extends "res://tests/scene_test.gd"
 ## Headless scripted test of a shift: the clock, patience, pay and tips, the end-of-shift
 ## report and playing again, then a whole shift played by an autopilot through the buttons.
 ##
-## Run: godot --headless --path . --fixed-fps 60 --script tests/shift_test.gd
+## Run: tests/run.sh shift_test
 
 
 func _run() -> void:
 	_test_rules()
 	_shift.spawning = false
+	_guests.chat_chance = 0.0 # chats have their own test, until the full shift
 	await _test_clock()
 	await _test_patience()
 	await _test_pay()
@@ -35,11 +36,11 @@ func _test_rules() -> void:
 	_check(Shift.tip_for_wait(20, 30) < Shift.tip_for_wait(20, 60), "the same wait earns less from a hasty guest")
 	var waits := Guest.TEMPERAMENTS.map(func(t: Dictionary) -> float: return t.wait)
 	_check(waits.min() < waits.max(), "some guests are more patient than others (%s)" % [waits])
-	_check(Shift.tip_for(0, 45, Guest.Reply.NEUTRAL) == 4, "a neutral reply leaves the tip alone")
-	_check(Shift.tip_for(0, 45, Guest.Reply.FRIENDLY) == Shift.MAX_TIP, "quick and friendly earns the full €6 tip")
-	_check(Shift.tip_for(27, 45, Guest.Reply.FRIENDLY) == 4, "a friendly reply makes up for some waiting")
-	_check(Shift.tip_for(0, 45, Guest.Reply.RUDE) == 2 and Shift.tip_for(27, 45, Guest.Reply.RUDE) == 1, "a rude reply halves the tip")
-	_check(Shift.tip_for(45, 45, Guest.Reply.RUDE) == 0, "a rude reply never costs more than the tip")
+	_check(Shift.tip_for(0, 45, Guest.Reply.NEUTRAL) == 4, "a neutral reply (or none) leaves the tip alone")
+	_check(Shift.tip_for(0, 45, Guest.Reply.GOOD) == Shift.MAX_TIP, "quick, with a good reply, earns the full €6 tip")
+	_check(Shift.tip_for(27, 45, Guest.Reply.GOOD) == 4, "a good reply makes up for some waiting")
+	_check(Shift.tip_for(0, 45, Guest.Reply.BAD) == 2 and Shift.tip_for(27, 45, Guest.Reply.BAD) == 1, "a bad reply halves the tip")
+	_check(Shift.tip_for(45, 45, Guest.Reply.BAD) == 0, "a bad reply never costs more than the tip")
 	_check(Shift.format_clock(8 * 60 + 5) == "08:05", "the clock reads 08:05")
 
 
@@ -67,8 +68,7 @@ func _test_patience() -> void:
 
 
 func _test_pay() -> void:
-	# Quick service: boards straight away on floor 0, out on floor 1. Nobody replies to
-	# their greeting, which counts as neutral.
+	# Quick service: boards straight away on floor 0, out on floor 1.
 	var q := _guests.spawn_guest(0, 1)
 	q.patience = 45
 	q.ride_patience = 60
@@ -117,7 +117,7 @@ func _test_end_and_play_again() -> void:
 	_check(paused, "the game pauses behind the report")
 	_check(_shift.wage == Shift.WAGE and _shift.money() == before + Shift.WAGE, "the base wage is paid at the end")
 	var text := _all_text(report)
-	_check(text.contains("Shift 1 over") and text.contains("Guests served: 2") and text.contains("took the stairs: 2") and text.contains("rudeness: 0") and text.contains("4.0 ★"), "the report sums up the day")
+	_check(text.contains("Shift 1 over") and text.contains("Guests served: 2") and text.contains("took the stairs: 2") and text.contains("your replies: 0") and text.contains("4.0 ★"), "the report sums up the day")
 	_check(not _shift.is_fired(), "4 stars keeps the job")
 	_shift.stars = 1.5
 	_check(_shift.is_fired(), "below 2 stars you're fired")
@@ -130,8 +130,8 @@ func _test_end_and_play_again() -> void:
 
 
 func _test_full_shift() -> void:
-	# The autopilot answers calls and delivers riders, nearest floor first, and answers
-	# every greeting friendly.
+	# The autopilot answers calls and delivers riders, nearest floor first, and gives
+	# the good reply to every chat.
 	_shift.spawning = true
 	var temperaments := {}
 	var first := {} # floor and clock time of the first guest
@@ -141,9 +141,10 @@ func _test_full_shift() -> void:
 			if first.is_empty():
 				first.merge({"floor": node.home_floor, "minutes": _shift.minutes}))
 	var rides := 0
-	var friendly := [0] # an array, so the lambdas can count
-	_guests.greeted.connect(func(_guest: Guest) -> void: _guests.reply.call_deferred(Guest.Reply.FRIENDLY))
-	_guests.replied.connect(func(_guest: Guest) -> void: friendly[0] += 1)
+	var chats := [0] # an array, so the lambda can count
+	_guests.chatting.connect(func(_guest: Guest) -> void:
+		chats[0] += 1
+		_guests.reply.call_deferred(Guest.Reply.GOOD))
 	while not _shift.is_over:
 		var target := _next_floor()
 		if target < 0 or not _elevator.is_open_at_rest() or _elevator.door_blockers > 0:
@@ -152,7 +153,7 @@ func _test_full_shift() -> void:
 		await _ride_to(target, false)
 		await _wait_seconds(0.3) # let guests on this floor start boarding
 		rides += 1
-	print("     autopilot made %d rides and %d friendly replies" % [rides, friendly[0]])
+	print("     autopilot made %d rides and answered %d chats" % [rides, chats[0]])
 
 	_check(_shift.is_over, "a whole shift can be played to the end")
 	_check(first.floor == Shift.FIRST_GUEST_FLOOR and first.minutes < Shift.FIRST_GUEST_AT + 1,
@@ -160,8 +161,7 @@ func _test_full_shift() -> void:
 	_check(_shift.spawned == Shift.GUESTS, "all %d guests turned up (%d)" % [Shift.GUESTS, _shift.spawned])
 	_check(_shift.served + _shift.lost == _shift.spawned, "every guest was served or gave up (%d + %d)" % [_shift.served, _shift.lost])
 	_check(_shift.served >= Shift.GUESTS / 2, "the autopilot serves most guests (%d)" % _shift.served)
-	_check(friendly[0] >= _shift.served, "every guest who boarded greeted the autopilot (%d)" % friendly[0])
-	_check(_shift.tips >= _shift.served * Shift.FRIENDLY_TIP, "friendly replies raise every tip (€%.2f)" % _shift.tips)
+	_check(chats[0] > 0 and chats[0] < _shift.served, "some guests chat, not all (%d of %d)" % [chats[0], _shift.served])
 	_check(temperaments.size() >= 2, "guests come with different temperaments (%s)" % [temperaments.keys()])
 	_check(is_equal_approx(_shift.money(), _shift.fares + _shift.tips + Shift.WAGE), "money adds up: €%.2f" % _shift.money())
 	_check(_shift.stars == Shift.START_STARS - Shift.COMPLAINT * _shift.lost, "stars: %.1f" % _shift.stars)
