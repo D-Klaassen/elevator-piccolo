@@ -6,16 +6,16 @@ h1{font-size:18px}.note{opacity:.7;font-size:13px}
 .guest{font-size:56px}.tag{font-size:13px;opacity:.8;margin-left:8px}
 .bubble{background:#f3e9dc;color:#222;border-radius:12px;padding:12px;font-size:21px;min-height:56px}
 .sub{font-size:15px;color:#555;font-style:italic;margin-top:6px;border-top:1px solid #ccc;padding-top:6px}
-.gesture{font-size:20px;margin-top:8px}.en{color:#0a5c36;font-weight:600}.miss{color:#999}
+.gesture{font-size:20px;margin-top:8px}.en{color:#0a5c36;font-weight:600}.known{color:#1d4ed8;font-weight:600}.known small{font-weight:400;color:#1d4ed8;opacity:.8}.miss{color:#999}
 .panel{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .panel button{font-size:13px;padding:6px;border-radius:12px;border:2px solid #c9a227;background:#222;color:#c9a227;cursor:pointer}
 .row{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;align-items:center}.row button{padding:8px 12px}
 pre{background:#111;padding:10px;font-size:12px;overflow:auto}.log div{font-size:14px}
 </style></head><body>
 <h1>PROTOTYPE: understanding guests (English known, Spanish not)</h1>
-<p class="note">Throwaway. English guests: you understand everything. Spanish guests speak real Spanish, but you don't catch every word or know how it's spelled, so what you "hear" is a bit off. Grey "…" = a word you missed. Green = English words they mix in: never the floor name, just a clue (\"hungry\", \"water\"). Helpful guests give hints less often and mostly mime; ask them again and they hold up fingers. Turn on the upgrade to get English subtitles.</p>
+<p class="note">Throwaway. English guests: you understand everything. Spanish guests speak real Spanish, but you don't catch every word or know how it's spelled, so what you "hear" is a bit off. Grey "…" = a word you missed. Green = English words they mix in: never the floor name, just a clue (\"hungry\", \"water\"). Helpful guests give hints less often and mostly mime; ask them again and they hold up fingers. Spanish lessons (upgrade) teach you words step by step: <span style="color:#7aa2ff">blue words</span> are words you know, with their meaning. You also miss fewer words. After lesson 5 you get full subtitles.</p>
 <div class="row">
- <label><input type="checkbox" id="learned" onchange="S.learnedSpanish=this.checked;draw()"> Upgrade: learned Spanish (subtitles)</label>
+ <span>Spanish lessons: <button onclick="lesson(-1)">−</button> <b id="lv">0</b>/5 <button onclick="lesson(1)">+ take lesson</button> <span id="lvdesc" class="note"></span></span>
  <label>Spanish guests: <input type="range" id="mix" min="0" max="100" value="60" oninput="S.spanishPct=+this.value;document.getElementById('mixv').textContent=this.value+'%'"> <span id="mixv">60%</span></label>
 </div>
 <div class="cab"><div>
@@ -49,13 +49,25 @@ const FINGERS=["👇 points down","☝️ holds up one finger","✌️ holds up 
 const MIMES={3:"🍽️ mimes eating",4:"🏊 mimes swimming",5:"💆 rubs their shoulders",6:"🍸 mimes drinking",0:"🧳 shows their suitcase"};
 const GUESTS=["🧔","👩‍🦰","👴","👩🏽","🧑‍🦱","👱‍♀️","👨🏻‍🦳","👩🏾"];
 const TYPES={helpful:{label:"helpful",en:.35,gesture:.4},neutral:{label:"neutral",en:.15,gesture:.1},unhelpful:{label:"doesn't try",en:0,gesture:0}};
-let S={learnedSpanish:false,spanishPct:60,lang:"en",type:null,floor:0,lineIdx:0,patience:3,money:0,right:0,wrong:0,heard:"",englishMixed:[],gesture:""};
+let S={lessons:0,spanishPct:60,lang:"en",type:null,floor:0,lineIdx:0,patience:3,money:0,right:0,wrong:0,heard:"",englishMixed:[],gesture:""};
 const pick=a=>a[Math.random()*a.length|0];
+// vocabulary each lesson teaches (lowercase, no accents) -> English meaning
+const LESSONS=[
+ {desc:"floors & numbers",words:{primer:"first",segundo:"second",piso:"floor",planta:"floor",baja:"ground",arriba:"up",todo:"all"}},
+ {desc:"hotel places",words:{recepcion:"reception",habitacion:"room",restaurante:"restaurant",piscina:"pool",azotea:"rooftop",terraza:"terrace",masaje:"massage"}},
+ {desc:"common verbs",words:{quiero:"I want",voy:"I go",ir:"to go",vamos:"we go",nadar:"swim",cenar:"dine",tomar:"have",relajarme:"relax",tengo:"I have",espera:"waits",esta:"is"}},
+ {desc:"small words",words:{"por":"for",favor:"please",gracias:"thanks",donde:"where",mi:"my",la:"the",el:"the",al:"to the",a:"to",en:"in",un:"a",una:"a",con:"with",los:"the",del:"of the",me:"me",se:"one",puede:"can",aqui:"here",para:"for",poco:"little",mucha:"much",hambre:"hunger",ninos:"kids",copa:"drink",cita:"appointment",taxi:"taxi"}},
+ {desc:"fluent: full subtitles",words:{}}];
+function norm(w){return w.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[¿¡.,?!]/g,"")}
+function knownMeaning(w){for(let i=0;i<Math.min(S.lessons,4);i++){const m=LESSONS[i].words[norm(w)];if(m)return m}return null}
+function lesson(d){S.lessons=Math.max(0,Math.min(5,S.lessons+d));if(S.lang=="es")hear();draw()}
 // what a non-speaker hears: phonetic spelling, no accents, some words lost
 function mishear(w){
- if(Math.random()<.25) return '<span class="miss">…</span>';
+ const m=knownMeaning(w);if(m)return `<span class="known">${w} <small>(${m})</small></span>`;
+ const fade=1-S.lessons/5;
+ if(Math.random()<.25*fade) return '<span class="miss">…</span>';
  let p=w.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[¿¡]/g,"");
- if(Math.random()<.6) p=p.replace(/^h/,"").replace(/qu/g,"k").replace(/ll/g,"y").replace(/v/g,"b").replace(/z/g,"s").replace(/j/g,"h").replace(/cion/g,"sion").replace(/ñ/g,"ny");
+ if(Math.random()<.6*fade) p=p.replace(/^h/,"").replace(/qu/g,"k").replace(/ll/g,"y").replace(/v/g,"b").replace(/z/g,"s").replace(/j/g,"h").replace(/cion/g,"sion").replace(/ñ/g,"ny");
  return p;
 }
 function draw(){
@@ -63,9 +75,9 @@ function draw(){
  document.getElementById("tag").textContent=S.lang=="en"?"🇬🇧 English":`🇪🇸 Spanish · ${TYPES[S.type].label}`;
  if(S.lang=="en"){b.textContent=EN[S.floor][S.lineIdx];sub.hidden=true}
  else{const [es,tr]=ES[S.floor][S.lineIdx];
-  b.innerHTML=(S.learnedSpanish?es:S.heard)+(S.englishMixed.length?` <span class="en">${S.englishMixed.join("… ")}</span>`:"");
-  sub.hidden=!S.learnedSpanish;sub.textContent=tr}
- document.getElementById("gesture").textContent=S.gesture;
+  b.innerHTML=(S.lessons>=5?es:S.heard)+(S.englishMixed.length?` <span class="en">${S.englishMixed.join("… ")}</span>`:"");
+  sub.hidden=S.lessons<5;sub.textContent=tr}
+ document.getElementById("gesture").textContent=S.gesture;document.getElementById("lv").textContent=S.lessons;document.getElementById("lvdesc").textContent=S.lessons?"learned: "+LESSONS.slice(0,S.lessons).map(l=>l.desc).join(", "):"no Spanish yet";
  document.getElementById("pat").textContent="❤️".repeat(S.patience)||"💢";
  for(const k of["money","r","w"])document.getElementById(k).textContent=S[{money:"money",r:"right",w:"wrong"}[k]];
  document.getElementById("state").textContent=JSON.stringify({...S,heard:undefined,answer:FLOORS[S.floor]+" (hidden in the game)",real_spanish:S.lang=="es"?ES[S.floor][S.lineIdx][0]:undefined},null,1);
