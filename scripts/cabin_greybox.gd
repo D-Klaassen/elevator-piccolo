@@ -1,7 +1,8 @@
 extends Node3D
 ## Greybox of the rustic cabin: a 3-floor shaft with a hallway on every floor,
 ## the elevator cab, the player standing inside it, the guests, the shift and a minimal HUD.
-## Every shift loads the saved career and saves it again once the shift is over.
+## Every shift loads the saved career, fits the cab with the upgrades bought, and saves the
+## career again once the shift is over. Between shifts you go through the staff room.
 
 const FLOORS := 3
 const HALL_WIDTH := 6.0
@@ -14,6 +15,7 @@ var _looking_label: Label
 var _clock_label: Label
 var _stats_label: Label
 var _report: ShiftReport
+var _staff_room: StaffRoom
 var _replies: ReplyChoices
 var _hint_timer: SceneTreeTimer
 var _shift: Shift
@@ -30,11 +32,17 @@ func _ready() -> void:
 	var elevator := Elevator.new()
 	elevator.name = "Elevator"
 	elevator.floor_count = FLOORS
+	elevator.door_time = Upgrades.DOOR_TIME[_career.level(Upgrades.DOORS)]
+	elevator.music_level = _career.level(Upgrades.MUSIC)
+	elevator.capacity = Upgrades.CAPACITY[_career.level(Upgrades.CAB)]
+	elevator.call_panel_level = _career.level(Upgrades.CALLS)
 	add_child(elevator)
 
 	var guests := GuestManager.new()
 	guests.name = "Guests"
 	guests.elevator = elevator
+	guests.capacity = elevator.capacity
+	guests.ride_patience_scale = Upgrades.RIDE_PATIENCE[elevator.music_level]
 	add_child(guests)
 
 	_shift = Shift.new()
@@ -61,7 +69,10 @@ func _ready() -> void:
 	player.looking_at_changed.connect(_on_looking_at_changed)
 	_on_clock_changed(Shift.START)
 	_on_stats_changed()
-	_show_hint("Your shift starts. Guests call from the hallways: watch the Calls lamps on your right.")
+	if elevator.call_panel_level > 0:
+		_show_hint("Your shift starts. Guests call from the hallways: watch the Calls lamps on your right.")
+	else:
+		_show_hint("Your shift starts. A ding means a guest is calling: find out on which floor.")
 
 
 func _build_environment() -> void:
@@ -182,6 +193,12 @@ func _build_hud() -> void:
 	_report.continued.connect(_on_continued)
 	hud.add_child(_report)
 
+	_staff_room = StaffRoom.new()
+	_staff_room.name = "StaffRoom"
+	_staff_room.bought.connect(_on_bought)
+	_staff_room.started.connect(_on_started)
+	hud.add_child(_staff_room)
+
 
 func _on_looking_at_changed(text: String) -> void:
 	_looking_label.text = text
@@ -205,17 +222,30 @@ func _on_shift_ended() -> void:
 	_looking_label.text = ""
 	_hint_label.text = ""
 	_career.record(_shift)
-	var error := _career.save()
-	if error != OK:
-		push_error("Couldn't save the career to %s: %s" % [Career.save_path, error_string(error)])
+	_save_career()
 	_report.show_for(_shift, _career)
 
 
-## The next shift, or the same one again after being fired: either way a fresh scene
-## that picks the career up from the save.
 func _on_continued() -> void:
+	_report.hide()
+	_staff_room.show_for(_career)
+
+
+func _on_bought(_id: String) -> void:
+	_save_career()
+
+
+## The next shift, or the same one again after being fired: either way a fresh scene
+## that picks the career, upgrades included, up from the save.
+func _on_started() -> void:
 	get_tree().paused = false
 	get_tree().reload_current_scene()
+
+
+func _save_career() -> void:
+	var error := _career.save()
+	if error != OK:
+		push_error("Couldn't save the career to %s: %s" % [Career.save_path, error_string(error)])
 
 
 func _show_hint(text: String) -> void:

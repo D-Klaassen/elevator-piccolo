@@ -93,10 +93,14 @@ func _end_shift() -> String:
 	return text
 
 
-## Presses the report's button and waits for the reloaded scene.
+## Presses the report's button, then starts the shift from the staff room, and waits for
+## the reloaded scene.
 func _next() -> void:
 	var old_id := _scene.get_instance_id() # an id, because the old scene gets freed
 	(_report().find_child("Continue", true, false) as Button).pressed.emit()
+	var staff_room: StaffRoom = _scene.find_child("StaffRoom", true, false)
+	_check(staff_room.visible and not _report().visible, "the report makes way for the staff room")
+	(staff_room.find_child("StartShift", true, false) as Button).pressed.emit()
 	await _wait_until(func() -> bool: return current_scene != null and current_scene.get_instance_id() != old_id and current_scene.is_node_ready())
 	_load_scene(current_scene)
 	_shift.spawning = false

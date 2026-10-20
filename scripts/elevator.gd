@@ -17,9 +17,19 @@ const DOOR_HEIGHT := 2.1
 const DOOR_OPENING := 1.0
 const WALL := 0.1
 const SPEED := 0.7 ## metres per second: about 5 s per floor
-const DOOR_TIME := 0.8 ## seconds
+const DOOR_TIME := 0.8 ## seconds, with the standard doors
 
 @export var floor_count := 3
+## Seconds the doors take to open or close. Faster doors lower it.
+@export var door_time := DOOR_TIME
+## Level of the music upgrade: 0 is a silent cab, from 1 a music box hangs on the back wall.
+@export var music_level := 0
+## How many guests fit, shown on the plate by the buttons.
+@export var capacity := 3
+## Level of the call panel upgrade: 0 has no call panel, so only the ding tells you someone
+## called; 1 adds a lamp per floor that lights while someone waits there; 2 makes a lamp
+## blink when a guest there runs out of patience. The calls are tracked either way.
+@export var call_panel_level := 0
 
 var current_floor := 0
 var doors_open := true
@@ -49,6 +59,7 @@ func _ready() -> void:
 	_build_doors()
 	_build_panel()
 	_build_call_panel()
+	_build_fittings()
 	_ding_player = AudioStreamPlayer.new()
 	_ding_player.stream = _make_ding()
 	# Keep ringing through the end-of-shift pause: a paused ding never finishes and leaks at quit.
@@ -66,7 +77,8 @@ func is_open_at_rest() -> bool:
 	return doors_open and not _moving and not _doors_busy
 
 
-## Sets the call lamp of floor [param f]: off, lit, or blinking for an impatient guest.
+## Sets the call of floor [param f]: off, waiting, or blinking for an impatient guest.
+## Without the call panel upgrade nothing shows it.
 func set_call(f: int, state: CallLamp) -> void:
 	_call_states[f] = state
 
@@ -75,10 +87,23 @@ func call_state(f: int) -> CallLamp:
 	return _call_states[f]
 
 
+## True when floor [param f]'s call lamp shows light right now: it is lit, or it blinks
+## and is in the on half of the blink. A panel without blinking keeps it lit.
+func is_call_lamp_lit(f: int) -> bool:
+	if _call_lamps.is_empty():
+		return false
+	match _call_states[f]:
+		CallLamp.ON:
+			return true
+		CallLamp.BLINKING:
+			return call_panel_level < 2 or _blink_time < 0.25
+	return false
+
+
 func _update_call_lamps(delta: float) -> void:
 	_blink_time = fmod(_blink_time + delta, 0.5)
-	for f in floor_count:
-		var lit := _call_states[f] == CallLamp.ON or (_call_states[f] == CallLamp.BLINKING and _blink_time < 0.25)
+	for f in _call_lamps.size():
+		var lit := is_call_lamp_lit(f)
 		var mat: StandardMaterial3D = _call_lamps[f].mesh.material
 		mat.albedo_color = Color(1, 0.35, 0.2) if lit else Color(0.2, 0.15, 0.12)
 		mat.emission_enabled = lit
@@ -158,23 +183,42 @@ func _build_panel() -> void:
 
 
 func _build_call_panel() -> void:
+	_call_states.resize(floor_count) # all OFF
+	if call_panel_level == 0:
+		return
 	# Next to the button panel: one lamp per floor, level with that floor's button.
 	var panel_x := -(CAB_HALF_WIDTH - WALL / 2 - 0.02)
 	var z := 0.3
 	var top := 1.0 + 0.16 * (floor_count + 1)
 	Greybox.box(_cab, Vector3(0.02, 0.16 * floor_count + 0.2, 0.2), Vector3(panel_x - 0.01, top - 0.16 * (floor_count - 1) / 2.0 + 0.04, z), Color(0.15, 0.13, 0.12), false)
 	var header := Greybox.label(_cab, "Calls", Vector3(panel_x + 0.01, top + 0.14, z), 90.0, 20)
+	header.name = "CallPanel"
 	header.modulate = Color(0.95, 0.9, 0.8)
 	_call_lamps.resize(floor_count)
-	_call_states.resize(floor_count)
 	for f in floor_count:
 		var y := top - 0.16 * (floor_count - 1 - f)
 		var lamp := Greybox.box(_cab, Vector3(0.03, 0.1, 0.1), Vector3(panel_x + 0.01, y, z), Color.BLACK, false) as MeshInstance3D
 		_call_lamps[f] = lamp
 		var caption := Greybox.label(_cab, str(f), Vector3(panel_x + 0.03, y, z), 90.0, 22)
 		caption.modulate = Color.BLACK
-		set_call(f, CallLamp.OFF)
 	_update_call_lamps(0.0)
+
+
+## What the upgrades add to the cab: the capacity plate and, once bought, the music box.
+func _build_fittings() -> void:
+	var panel_x := -(CAB_HALF_WIDTH - WALL / 2 - 0.02)
+	var plate := Greybox.label(_cab, "Max %d persons" % capacity, Vector3(panel_x, 0.8, 0.6), 90.0, 18)
+	plate.name = "CapacityPlate"
+	plate.modulate = Color(0.95, 0.9, 0.8)
+	if music_level == 0:
+		return
+	var music_box := Node3D.new()
+	music_box.name = "MusicBox"
+	music_box.position = Vector3(0, CAB_HEIGHT - 0.35, -(CAB_HALF_WIDTH - WALL / 2 - 0.1))
+	_cab.add_child(music_box)
+	Greybox.box(music_box, Vector3(0.24 + 0.08 * music_level, 0.2, 0.14), Vector3.ZERO, Color(0.2, 0.14, 0.1), false)
+	var note := Greybox.label(music_box, "♪".repeat(music_level), Vector3(0, 0, 0.075), 0.0, 40)
+	note.modulate = Color(1, 0.85, 0.4)
 
 
 ## A short bell tone, generated so the project needs no audio files.
@@ -309,7 +353,7 @@ func _set_doors(open: bool, instant: bool) -> void:
 	_doors_busy = true
 	_doors_moving_to = open
 	# Reopening halfway takes only the time needed for the rest of the way.
-	var time := DOOR_TIME * absf(_left_door.position.x - left_x) / (DOOR_OPENING / 2)
+	var time := door_time * absf(_left_door.position.x - left_x) / (DOOR_OPENING / 2)
 	_door_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS).set_parallel()
 	_door_tween.tween_property(_left_door, "position:x", left_x, time)
 	_door_tween.tween_property(_right_door, "position:x", right_x, time)

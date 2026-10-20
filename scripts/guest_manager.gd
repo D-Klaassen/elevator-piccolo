@@ -15,8 +15,12 @@ signal reply_closed ## the reply choices can go: answered, no answer in time, or
 const MAX_WAITING := 4
 ## Where guests wait in each hallway, relative to the floor (x, 0, z): in view of the open doors.
 const WAIT_SPOTS: Array[Vector3] = [Vector3(-0.55, 0, 2.3), Vector3(0.55, 0, 2.3), Vector3(0, 0, 3.1)]
-## Where guests stand in the cab, in cab coordinates. One slot per guest, so this is the capacity.
-const CAB_SLOTS: Array[Vector3] = [Vector3(0.55, 0, -0.55), Vector3(-0.55, 0, -0.55), Vector3(0.55, 0, 0.3)]
+## Where guests stand in the cab, in cab coordinates, one slot per guest: enough for the
+## biggest cab. A cab of [member capacity] uses the first that many.
+const CAB_SLOTS: Array[Vector3] = [
+	Vector3(0.55, 0, -0.55), Vector3(-0.55, 0, -0.55), Vector3(0.55, 0, 0.3),
+	Vector3(0, 0, -0.72), Vector3(0.62, 0, -0.12),
+]
 const LANDING_Z := 1.8 ## just in front of the landing opening
 const CAB_DOOR_Z := 0.5 ## just inside the cab doors
 const HALL_END_Z := 4.4 ## where guests come from and go to
@@ -24,8 +28,12 @@ const REPLY_TIME := 10.0 ## seconds a guest waits for your reply; no reply count
 const CHAT_DELAY_MIN := 3.0 ## seconds after they start boarding before a chatty guest speaks up
 const CHAT_DELAY_MAX := 6.0
 
-## Multiplies every guest's patience. Upgrades (music and the like) will raise it.
+## Multiplies every guest's patience, both waiting and riding.
 @export var patience_scale := 1.0
+## Multiplies how long guests put up with a ride, on top of [member patience_scale]. Music raises it.
+@export var ride_patience_scale := 1.0
+## How many guests fit in the cab. A bigger cab raises it, up to [constant CAB_SLOTS].
+@export var capacity := 3
 ## Share of guests who strike up a chat during the ride. Off for now: answering felt clunky.
 @export var chat_chance := 0.0
 
@@ -109,7 +117,7 @@ func spawn_guest(home: int, destination: int) -> Guest:
 	var temperament: Dictionary = Guest.TEMPERAMENTS[rng.randi_range(0, Guest.TEMPERAMENTS.size() - 1)]
 	guest.temperament = temperament.name
 	guest.patience = temperament.wait * patience_scale
-	guest.ride_patience = temperament.ride * patience_scale
+	guest.ride_patience = temperament.ride * patience_scale * ride_patience_scale
 	guest.wait_spot = spot
 	add_child(guest)
 	var y := _floor_y(home)
@@ -250,7 +258,7 @@ func _free_wait_spot(f: int) -> int:
 
 
 func _free_cab_slot() -> int:
-	for slot in CAB_SLOTS.size():
+	for slot in mini(capacity, CAB_SLOTS.size()):
 		if not _guests.any(func(g: Guest) -> bool: return g.cab_slot == slot):
 			return slot
 	return -1
