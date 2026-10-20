@@ -45,6 +45,7 @@ func _ready() -> void:
 ## Shows how [param shift] went; [param career] already has it recorded.
 func show_for(shift: Shift, career: Career) -> void:
 	_title.text = "You're fired!" if shift.is_fired() else "Shift %d over" % career.shifts_done
+	_title.text += "\n%s" % career.hotel_info().name
 	_lines.text = "\n".join([
 		"Guests served: %d" % shift.served,
 		"Guests who took the stairs: %d" % shift.lost,

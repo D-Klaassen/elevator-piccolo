@@ -19,15 +19,16 @@ func _run() -> void:
 func _test_rules() -> void:
 	var r := RandomNumberGenerator.new()
 	r.seed = 7
-	var times := Shift.make_schedule(r)
-	_check(times.size() == Shift.GUESTS, "%d guests per shift" % Shift.GUESTS)
+	var cabin := Hotels.at(0)
+	var times := Shift.make_schedule(r, cabin.guests, cabin.lunch_guests)
+	_check(times.size() == cabin.guests, "%d guests per shift in the cabin" % cabin.guests)
 	_check(times == _sorted(times), "the schedule is in order")
 	_check(times[0] == Shift.FIRST_GUEST_AT, "the first guest calls at %s" % Shift.format_clock(times[0]))
 	_check(times.all(func(t: float) -> bool: return t >= Shift.START and t < Shift.END), "every guest comes between 08:00 and 18:00")
 	var lunch := times.filter(func(t: float) -> bool: return t >= Shift.LUNCH_START and t < Shift.LUNCH_END).size()
 	var lunch_rate := lunch / float(Shift.LUNCH_END - Shift.LUNCH_START)
 	var other_rate := (times.size() - lunch) / float(Shift.END - Shift.START - (Shift.LUNCH_END - Shift.LUNCH_START))
-	_check(lunch >= Shift.LUNCH_GUESTS and lunch_rate > 2 * other_rate, "a lunch rush (%d guests in 12:00-13:30)" % lunch)
+	_check(lunch >= cabin.lunch_guests and lunch_rate > 2 * other_rate, "a lunch rush (%d guests in 12:00-13:30)" % lunch)
 
 	_check(Shift.tip_for_wait(0, 45) == 4 and Shift.tip_for_wait(9, 45) == 4, "a quick pick-up earns the full €4 wait tip")
 	_check(Shift.tip_for_wait(27, 45) == 2, "27 s of a 45 s patience earns half the wait tip")
@@ -160,9 +161,9 @@ func _test_full_shift() -> void:
 	_check(_shift.is_over, "a whole shift can be played to the end")
 	_check(first.floor == Shift.FIRST_GUEST_FLOOR and first.minutes < Shift.FIRST_GUEST_AT + 1,
 		"the first guest turns up on floor %d at %s" % [first.floor, Shift.format_clock(first.minutes)])
-	_check(_shift.spawned == Shift.GUESTS, "all %d guests turned up (%d)" % [Shift.GUESTS, _shift.spawned])
+	_check(_shift.spawned == _shift.hotel.guests, "all %d guests turned up (%d)" % [_shift.hotel.guests, _shift.spawned])
 	_check(_shift.served + _shift.lost == _shift.spawned, "every guest was served or gave up (%d + %d)" % [_shift.served, _shift.lost])
-	_check(_shift.served >= Shift.GUESTS / 2, "the autopilot serves most guests (%d)" % _shift.served)
+	_check(_shift.served >= _shift.hotel.guests / 2, "the autopilot serves most guests (%d)" % _shift.served)
 	_check(chats[0] == 0, "chats are off: nobody chats (%d)" % chats[0])
 	_check(temperaments.size() >= 2, "guests come with different temperaments (%s)" % [temperaments.keys()])
 	_check(is_equal_approx(_shift.money(), _shift.fares + _shift.tips + Shift.WAGE), "money adds up: €%.2f" % _shift.money())

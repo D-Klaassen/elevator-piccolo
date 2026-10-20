@@ -1,10 +1,10 @@
 extends Node3D
-## Greybox of the rustic cabin: a 3-floor shaft with a hallway on every floor,
-## the elevator cab, the player standing inside it, the guests, the shift and a minimal HUD.
+## Greybox of the hotel you work in (the rustic cabin, then Pension Bellevue and up): a shaft
+## with a hallway on every floor, the elevator cab, the player standing inside it, the
+## guests, the shift and a minimal HUD.
 ## Every shift loads the saved career, fits the cab with the upgrades bought, and saves the
 ## career again once the shift is over. Between shifts you go through the staff room.
 
-const FLOORS := 3
 const HALL_WIDTH := 6.0
 const HALL_DEPTH := 4.0
 const SHAFT_FRONT := 1.1 ## z where the landing wall starts, just in front of the cab
@@ -20,18 +20,21 @@ var _replies: ReplyChoices
 var _hint_timer: SceneTreeTimer
 var _shift: Shift
 var _career: Career
+var _floors: int
 
 
 func _ready() -> void:
 	_career = Career.load_saved()
+	var hotel := _career.hotel_info()
+	_floors = hotel.floors
 	_build_environment()
 	_build_shaft()
-	for f in FLOORS:
+	for f in _floors:
 		_build_landing(f)
 
 	var elevator := Elevator.new()
 	elevator.name = "Elevator"
-	elevator.floor_count = FLOORS
+	elevator.floor_count = _floors
 	elevator.door_time = Upgrades.DOOR_TIME[_career.level(Upgrades.DOORS)]
 	elevator.music_level = _career.level(Upgrades.MUSIC)
 	elevator.capacity = Upgrades.CAPACITY[_career.level(Upgrades.CAB)]
@@ -42,12 +45,13 @@ func _ready() -> void:
 	guests.name = "Guests"
 	guests.elevator = elevator
 	guests.capacity = elevator.capacity
-	guests.ride_patience_scale = Upgrades.RIDE_PATIENCE[elevator.music_level]
+	guests.ride_patience_scale = Upgrades.RIDE_PATIENCE[elevator.music_level] * hotel.ride_patience
 	add_child(guests)
 
 	_shift = Shift.new()
 	_shift.name = "Shift"
 	_shift.guests = guests
+	_shift.hotel = hotel
 	add_child(_shift)
 
 	var player := Player.new()
@@ -89,7 +93,7 @@ func _build_environment() -> void:
 
 func _build_shaft() -> void:
 	var color := Color(0.25, 0.25, 0.27)
-	var height := FLOORS * Elevator.FLOOR_HEIGHT + 1.0
+	var height := _floors * Elevator.FLOOR_HEIGHT + 1.0
 	var center_y := height / 2 - 1.0
 	var outer := Elevator.CAB_HALF_WIDTH + 0.15
 	# Pit floor, back and side walls around the cab.
@@ -196,6 +200,7 @@ func _build_hud() -> void:
 	_staff_room = StaffRoom.new()
 	_staff_room.name = "StaffRoom"
 	_staff_room.bought.connect(_on_bought)
+	_staff_room.moved.connect(_save_career)
 	_staff_room.started.connect(_on_started)
 	hud.add_child(_staff_room)
 
@@ -206,7 +211,7 @@ func _on_looking_at_changed(text: String) -> void:
 
 
 func _on_clock_changed(minutes: int) -> void:
-	_clock_label.text = Shift.format_clock(minutes)
+	_clock_label.text = "%s   %s" % [_shift.hotel.name, Shift.format_clock(minutes)]
 	if _shift.is_lunch_rush():
 		_clock_label.text += "  lunch rush"
 

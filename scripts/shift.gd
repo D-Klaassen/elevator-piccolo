@@ -13,14 +13,13 @@ const START := 8 * 60 ## minutes since midnight
 const END := 18 * 60
 const LUNCH_START := 12 * 60
 const LUNCH_END := 13 * 60 + 30
-const GUESTS := 15 ## guests per shift in the rustic cabin
-const LUNCH_GUESTS := 5 ## of those, the ones who come during the lunch rush
 ## The first guest calls right away, from the ground floor where the cab starts, so a
 ## shift never opens with nothing to do.
 const FIRST_GUEST_AT := START + 5
 const FIRST_GUEST_FLOOR := 0
 
 const WAGE := 5.0 ## the near-nothing base pay, paid at the end of the shift
+## Fares and tips in the rustic cabin; better hotels pay more, see [Hotels].
 const FARE := 2.0
 const MAX_TIP := 6.0
 const WAIT_TIP := 4.0 ## the most a guest tips for a quick pick-up alone
@@ -36,6 +35,8 @@ const FIRED_BELOW := 2.0 ## stars
 @export var length_seconds := 540.0
 
 var guests: GuestManager
+## The hotel this shift is in, from [constant Hotels.LADDER]: how many guests come and what they pay.
+var hotel: Dictionary = Hotels.at(0)
 ## When false, the schedule doesn't spawn anyone (tests spawn guests by hand).
 var spawning := true
 var minutes := float(START)
@@ -55,7 +56,7 @@ var _schedule: Array[float] = []
 
 func _ready() -> void:
 	rng.randomize()
-	_schedule = make_schedule(rng)
+	_schedule = make_schedule(rng, hotel.guests, hotel.lunch_guests)
 	guests.delivered.connect(_on_delivered)
 	guests.gave_up.connect(_on_gave_up)
 	guests.replied.connect(_on_replied)
@@ -92,12 +93,13 @@ func is_fired() -> bool:
 	return stars < FIRED_BELOW
 
 
-## When the guests of one shift call, in minutes since midnight, sorted.
-static func make_schedule(r: RandomNumberGenerator) -> Array[float]:
+## When the [param count] guests of one shift call, in minutes since midnight, sorted.
+## [param lunch_count] of them come during the lunch rush.
+static func make_schedule(r: RandomNumberGenerator, count: int, lunch_count: int) -> Array[float]:
 	var times: Array[float] = [float(FIRST_GUEST_AT)]
-	for i in GUESTS - LUNCH_GUESTS - 1:
+	for i in count - lunch_count - 1:
 		times.append(r.randf_range(FIRST_GUEST_AT, END - 30))
-	for i in LUNCH_GUESTS:
+	for i in lunch_count:
 		times.append(r.randf_range(LUNCH_START, LUNCH_END))
 	times.sort()
 	return times
@@ -125,13 +127,18 @@ static func format_clock(m: float) -> String:
 	return "%02d:%02d" % [int(m) / 60, int(m) % 60]
 
 
+## A delivered guest's fare in this hotel.
+func fare() -> float:
+	return FARE * hotel.pay
+
+
 func _on_delivered(guest: Guest) -> void:
-	var tip := tip_for(guest.waited, guest.patience, guest.reply)
+	var tip := roundf(tip_for(guest.waited, guest.patience, guest.reply) * hotel.pay)
 	served += 1
-	fares += FARE
+	fares += fare()
 	tips += tip
 	stats_changed.emit()
-	announced.emit('Guest: "Thanks!"   +€%d fare, +€%d tip' % [FARE, tip])
+	announced.emit('Guest: "Thanks!"   +€%d fare, +€%d tip' % [fare(), tip])
 
 
 func _on_gave_up(guest: Guest) -> void:

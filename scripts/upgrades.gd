@@ -1,6 +1,7 @@
 class_name Upgrades
-## The upgrades you can buy in the staff room between shifts, at the rustic cabin's prices
-## (half of Pension Bellevue's), and what every level does. Level 0 is what you start with.
+## The upgrades you can buy in the staff room between shifts and what every level does.
+## Level 0 is what you start with. The prices are Pension Bellevue's; every hotel scales
+## them (the rustic cabin halves them), see [Hotels].
 ## Spanish lessons come with the Spanish guests.
 
 const MUSIC := "music"
@@ -14,7 +15,7 @@ const CATALOGUE: Array[Dictionary] = [
 	{
 		"id": CALLS,
 		"name": "Call panel",
-		"prices": [40.0, 100.0],
+		"prices": [80.0, 200.0],
 		"effects": [
 			"Lamps show which floors have someone waiting",
 			"The lamps blink when a guest runs out of patience",
@@ -23,7 +24,7 @@ const CATALOGUE: Array[Dictionary] = [
 	{
 		"id": MUSIC,
 		"name": "Music",
-		"prices": [40.0, 100.0, 225.0],
+		"prices": [80.0, 200.0, 450.0],
 		"effects": [
 			"A music box: guests put up with a 25% longer ride",
 			"Better speakers: a 50% longer ride",
@@ -33,13 +34,13 @@ const CATALOGUE: Array[Dictionary] = [
 	{
 		"id": CAB,
 		"name": "Bigger cab",
-		"prices": [75.0, 200.0],
+		"prices": [150.0, 400.0],
 		"effects": ["Room for 4 guests", "Room for 5 guests"],
 	},
 	{
 		"id": DOORS,
 		"name": "Faster doors",
-		"prices": [50.0, 125.0],
+		"prices": [100.0, 250.0],
 		"effects": ["Doors open and close in 0.55 s", "Doors open and close in 0.35 s"],
 	},
 ]
