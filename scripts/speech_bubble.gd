@@ -2,6 +2,7 @@ class_name SpeechBubble
 extends Sprite3D
 ## A guest's speech bubble: a dark rounded box with a gold border, the line in white and
 ## what you understood in gold under it, with a tail whose tip sits on the guest's mouth.
+## A small badge on its top right corner says which language they speak (ES, EN).
 ## The box is drawn into a texture and billboarded, so it turns to face you; it draws over
 ## the walls, so whoever shows it hides it while a wall is in between.
 
@@ -12,11 +13,18 @@ const FONT_SIZE := 26
 const MAX_WIDTH := 440.0 ## pixels; longer lines wrap
 const TAIL_HEIGHT := 34.0 ## pixels
 const SIDE := 18.0 ## pixels the tail's tip sits beside its base, so the box clears the face
+## Room above the box for the language badge, which sits across its top border.
+const BADGE_ROOM := 14.0
+const BADGE_INSET := 14.0 ## pixels between the badge and the box's right edge
+## The badge's colour per language; others get [constant BADGE_OTHER].
+const BADGE_COLOURS := {"es": Color(0.75, 0.15, 0.1), "en": Color(0.15, 0.3, 0.6)}
+const BADGE_OTHER := Color(0.3, 0.3, 0.35)
 
 var _viewport: SubViewport
 var _panel: PanelContainer
 var _text: Label
 var _under: Label
+var _badge: Label
 var _tail: Polygon2D
 var _tail_fill: Polygon2D
 
@@ -59,6 +67,12 @@ func _init() -> void:
 	_tail_fill = Polygon2D.new()
 	_tail_fill.color = BACKGROUND
 	_viewport.add_child(_tail_fill)
+
+	_badge = Label.new()
+	_badge.add_theme_font_size_override("font_size", 16)
+	_badge.add_theme_color_override("font_color", Color.WHITE)
+	_badge.hide()
+	_viewport.add_child(_badge)
 	texture = _viewport.get_texture()
 	hide()
 
@@ -71,11 +85,22 @@ static func _label(font_size: int, color: Color) -> Label:
 	return l
 
 
-## Shows [param text], with [param under] beneath it unless that's empty, sized to fit.
-func set_lines(text: String, under: String) -> void:
+## Shows [param text], with [param under] beneath it unless that's empty, sized to fit,
+## and a badge for [param language] (a code such as "es") unless that's empty.
+func set_lines(text: String, under: String, language := "") -> void:
 	_text.text = text
 	_under.text = under
 	_under.visible = not under.is_empty()
+	_badge.text = " %s " % language.to_upper()
+	_badge.visible = not language.is_empty()
+	var badge_box := StyleBoxFlat.new()
+	badge_box.bg_color = BADGE_COLOURS.get(language, BADGE_OTHER)
+	badge_box.set_corner_radius_all(6)
+	badge_box.content_margin_left = 4
+	badge_box.content_margin_right = 4
+	badge_box.content_margin_top = 2
+	badge_box.content_margin_bottom = 2
+	_badge.add_theme_stylebox_override("normal", badge_box)
 	var width := 0.0
 	for l: Label in [_text, _under]:
 		var font := l.get_theme_font("font")
@@ -99,8 +124,13 @@ func _process(_delta: float) -> void:
 func _fit() -> void:
 	_panel.reset_size()
 	var box := _panel.get_combined_minimum_size()
+	_panel.position.y = BADGE_ROOM
+	# The badge's middle on the box's top border, a little in from its right edge.
+	_badge.reset_size()
+	var badge := _badge.get_combined_minimum_size()
+	_badge.position = Vector2(box.x - BADGE_INSET - badge.x, BADGE_ROOM - badge.y / 2)
 
-	var bottom := box.y
+	var bottom := BADGE_ROOM + box.y
 	var w := float(BORDER_WIDTH)
 	var tip := Vector2(4, bottom + TAIL_HEIGHT - 2)
 	_tail.polygon = PackedVector2Array([Vector2(22, bottom - w), Vector2(58, bottom - w), tip])
@@ -112,6 +142,15 @@ func _fit() -> void:
 
 func text() -> String:
 	return _text.text
+
+
+func language_badge() -> String:
+	return _badge.text.strip_edges() if _badge.visible else ""
+
+
+## Where the box and the badge are in the bubble's texture, in pixels: [box, badge].
+func layout() -> Array[Rect2]:
+	return [Rect2(_panel.position, _panel.get_combined_minimum_size()), Rect2(_badge.position, _badge.get_combined_minimum_size())]
 
 
 func under_text() -> String:

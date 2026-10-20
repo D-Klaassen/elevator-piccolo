@@ -7,7 +7,8 @@ extends StaticBody3D
 ## floor they want. Some guests strike
 ## up a chat during the ride and wait for your reply. A red "!" above their head means
 ## they're running out of patience. Whatever a guest says shows in a speech bubble that comes
-## out of their mouth; for a Spanish guest, with what you understood underneath.
+## out of their mouth, with their language on a badge at its top right; for a Spanish guest,
+## with what you understood underneath.
 
 signal talked_to ## the player clicked them; a Spanish guest's answer is up to the [GuestManager]
 
@@ -227,7 +228,7 @@ func press() -> void:
 ## Shows [param text] in a speech bubble from their mouth, with [param under] (what you
 ## understood, and what they do) beneath it, for [constant BUBBLE_TIME] seconds.
 func say(text: String, under := "") -> void:
-	_bubble.set_lines(text, under)
+	_bubble.set_lines(text, under, language)
 	_speaking = true
 	_bubble.visible = _in_view()
 	_bubble_timer = get_tree().create_timer(BUBBLE_TIME, false)
@@ -248,6 +249,10 @@ func bubble_text() -> String:
 
 func under_text() -> String:
 	return _bubble.under_text() if _speaking else ""
+
+
+func language_badge() -> String:
+	return _bubble.language_badge() if _speaking else ""
 
 
 func reply_line(r: Reply) -> String:
