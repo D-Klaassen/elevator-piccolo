@@ -28,13 +28,12 @@ A game design + tech spec for a playable **vertical slice**: engine chosen, firs
 
 ## Not yet specified
 
-- Guest variety: archetypes, patience, VIPs, groups, multiple guests with different floors in one ride.
-- Art pipeline: asset sources (store packs vs Blender), characters and animation for guests.
-- Save system, settings, controller/Steam Deck input.
-- Steam release: Steamworks integration, store page, demo, pricing (beyond the slice — likely next map).
+_Nothing left: the way to the destination is clear. Art, save/settings/controller and the demo's guest variety were settled in the vertical-slice ticket._
 
 ## Out of scope
 
 - Multiplayer.
 - Cosmetics (uniform, cab decoration): no gameplay effect, decided against for the demo in the upgrades ticket.
 - Going back to earlier hotels: maybe in the future, ruled out for now in the hotel-progression ticket.
+- Guest variety beyond the demo (VIPs, groups, signature types per hotel): belongs to the later hotels, past the vertical slice.
+- Steam release (Steamworks, achievements, store page, pricing): past the vertical slice; a likely next map.
