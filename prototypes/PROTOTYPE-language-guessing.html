@@ -1,0 +1,60 @@
+<!doctype html><html><head><meta charset="utf-8"><title>PROTOTYPE language guessing</title>
+<style>
+body{font-family:system-ui;background:#2b2118;color:#f3e9dc;margin:0;padding:16px;max-width:900px;margin:auto}
+h1{font-size:18px}.note{opacity:.7;font-size:13px}
+.cab{background:#4a3828;border:6px solid #c9a227;border-radius:8px;padding:16px;display:grid;grid-template-columns:1fr 180px;gap:16px}
+.guest{font-size:64px}.bubble{background:#f3e9dc;color:#222;border-radius:12px;padding:12px;font-size:22px;min-height:60px}
+.hint{font-size:28px;margin-top:8px}.panel{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.panel button{font-size:16px;padding:10px;border-radius:50%;aspect-ratio:1;border:2px solid #c9a227;background:#222;color:#c9a227;cursor:pointer}
+.row{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}.row button{padding:8px 12px}
+pre{background:#111;padding:10px;font-size:12px;overflow:auto}.mode.on{background:#c9a227}
+.log div{font-size:14px}
+</style></head><body>
+<h1>PROTOTYPE: guessing a guest's floor in an unknown language</h1>
+<p class="note">Throwaway. Question: does guessing feel fun, fair and learnable? Switch the hint modes and compare. Floors: 0 Lobby · 1–2 Rooms · 3 Restaurant · 4 Pool · 5 Spa · 6 Rooftop bar.</p>
+<div class="row" id="modes"></div>
+<div class="cab"><div>
+ <div class="guest" id="guest"></div>
+ <div class="bubble" id="bubble"></div>
+ <div class="hint" id="hint"></div>
+ <div class="row"><button onclick="ask()">🙋 Ask again (costs patience)</button><button onclick="next()">Next guest</button></div>
+ <div>Patience: <span id="pat"></span> · Money: €<span id="money">0</span></div>
+</div><div class="panel" id="panel"></div></div>
+<h3>Log</h3><div class="log" id="log"></div>
+<h3>State</h3><pre id="state"></pre>
+<script>
+const FLOORS=["Lobby","Room 1","Room 2","Restaurant","Pool","Spa","Rooftop bar"];
+// made-up language "Vellish": one word per floor concept + filler
+const WORDS={0:"durn",1:"ka",2:"vi",3:"munga",4:"splosh",5:"aahmé",6:"zuuki"};
+const FILLER=["Hesta","bo","lurri","ne","sa","pimo","tek","ollu"];
+const ITEMS={0:"🧳",1:"🔑",2:"🔑",3:"🍽️",4:"🩱",5:"🧖",6:"🍸"};
+const FINGERS=["✊","☝️","✌️","🤟","🖖","🖐️","🖐️☝️"];
+const MODES={
+ A:{name:"A: words only",hint:()=>""},
+ B:{name:"B: words + item",hint:f=>ITEMS[f]},
+ C:{name:"C: words + fingers",hint:f=>FINGERS[f]},
+ D:{name:"D: words + item, fades as you learn",hint:f=>S.known[f]>=2?"":ITEMS[f]},
+};
+const GUESTS=["🧔","👩‍🦰","👴","👩🏽","🧑‍🦱","👱‍♀️"];
+let S={mode:"B",floor:0,patience:3,money:0,known:{},asks:0,stats:{right:0,wrong:0}};
+function gib(){return FILLER[Math.random()*FILLER.length|0]}
+function line(f){const w=WORDS[f];const g=Math.random()<.5;return `${gib()} ${g?gib()+" ":""}<b>${w}</b>${f==1||f==2?"":""} ${gib()}?`}
+function render(){
+ document.getElementById("modes").innerHTML=Object.entries(MODES).map(([k,m])=>`<button class="mode ${S.mode==k?"on":""}" onclick="S.mode='${k}';next()">${m.name}</button>`).join("");
+ document.getElementById("hint").textContent=MODES[S.mode].hint(S.floor);
+ document.getElementById("pat").textContent="❤️".repeat(S.patience)||"💢";
+ document.getElementById("money").textContent=S.money;
+ document.getElementById("state").textContent=JSON.stringify({...S,answer:FLOORS[S.floor]+" (hidden in game)"},null,1);
+}
+function next(){S.floor=Math.random()*7|0;S.patience=3;S.asks=0;
+ document.getElementById("guest").textContent=GUESTS[Math.random()*GUESTS.length|0];
+ document.getElementById("bubble").innerHTML=line(S.floor);render()}
+function ask(){if(S.patience<=1)return;S.patience--;S.asks++;document.getElementById("bubble").innerHTML=line(S.floor)+" <i>(slower, annoyed)</i>";render()}
+function pick(f){const ok=f==S.floor;
+ const tip=ok?Math.max(0,S.patience)*1:0, fare=ok?2:0; S.money+=fare+tip;
+ if(ok){S.stats.right++;S.known[f]=(S.known[f]||0)+1}else S.stats.wrong++;
+ log(`${ok?"✅":"❌"} guessed ${FLOORS[f]}, wanted ${FLOORS[S.floor]} (word "${WORDS[S.floor]}") → €${fare+tip}`);next()}
+function log(t){const d=document.createElement("div");d.textContent=t;document.getElementById("log").prepend(d)}
+document.getElementById("panel").innerHTML=FLOORS.map((n,i)=>`<button title="${n}" onclick="pick(${i})">${i}</button>`).reverse().join("");
+next();
+</script></body></html>
