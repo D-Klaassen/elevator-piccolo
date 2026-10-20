@@ -8,6 +8,8 @@ signal spoke(text: String)
 enum State { ARRIVING, WAITING, BOARDING, RIDING, LEAVING }
 
 const WALK_SPEED := 1.2 ## metres per second
+const PATIENCE := 75.0 ## seconds a guest waits for the cab before taking the stairs
+const IMPATIENT_AFTER := 50.0 ## seconds of waiting before their call lamp starts blinking
 const RADIUS := 0.25
 const HEIGHT := 1.7
 ## Physics layer value for guests: the player's look ray sees them, the player's body walks through them.
@@ -29,6 +31,7 @@ var state := State.ARRIVING
 var wait_spot := -1 ## index of the hallway spot while arriving or waiting
 var cab_slot := -1 ## index of the spot in the cab while boarding or riding
 var line := ""
+var waited := 0.0 ## seconds since they called; stops counting once they board
 
 var _tween: Tween
 
@@ -59,6 +62,10 @@ func setup(p_home_floor: int, p_destination: int, color: Color, line_template: S
 	shape.shape = capsule_shape
 	shape.position.y = HEIGHT / 2
 	add_child(shape)
+
+
+func is_impatient() -> bool:
+	return waited >= IMPATIENT_AFTER
 
 
 func press() -> void:

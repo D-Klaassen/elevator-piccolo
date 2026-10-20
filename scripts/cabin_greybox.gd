@@ -1,6 +1,6 @@
 extends Node3D
 ## Greybox of the rustic cabin: a 3-floor shaft with a hallway on every floor,
-## the elevator cab, the player standing inside it, the guests and a minimal HUD.
+## the elevator cab, the player standing inside it, the guests, the shift and a minimal HUD.
 
 const FLOORS := 3
 const HALL_WIDTH := 6.0
@@ -10,8 +10,11 @@ const SHAFT_FRONT := 1.1 ## z where the landing wall starts, just in front of th
 var _hint_label: Label
 var _crosshair: Label
 var _looking_label: Label
-var _served_label: Label
+var _clock_label: Label
+var _stats_label: Label
+var _report: ShiftReport
 var _hint_timer: SceneTreeTimer
+var _shift: Shift
 
 
 func _ready() -> void:
@@ -30,6 +33,11 @@ func _ready() -> void:
 	guests.elevator = elevator
 	add_child(guests)
 
+	_shift = Shift.new()
+	_shift.name = "Shift"
+	_shift.guests = guests
+	add_child(_shift)
+
 	var player := Player.new()
 	player.name = "Player"
 	player.position = Vector3(0, 0.05, -0.3)
@@ -39,9 +47,14 @@ func _ready() -> void:
 	_build_hud()
 	elevator.hint.connect(_show_hint)
 	guests.said.connect(_show_hint)
-	guests.served_changed.connect(_on_served_changed)
+	_shift.announced.connect(_show_hint)
+	_shift.clock_changed.connect(_on_clock_changed)
+	_shift.stats_changed.connect(_on_stats_changed)
+	_shift.ended.connect(_on_shift_ended)
 	player.looking_at_changed.connect(_on_looking_at_changed)
-	_show_hint("Guests call from the hallways: watch the Calls lamps on your right.")
+	_on_clock_changed(Shift.START)
+	_on_stats_changed()
+	_show_hint("Your shift starts. Guests call from the hallways: watch the Calls lamps on your right.")
 
 
 func _build_environment() -> void:
@@ -133,17 +146,30 @@ func _build_hud() -> void:
 
 	var help := Label.new()
 	help.text = "WASD walk · mouse look · click a button or a guest · Esc frees the mouse"
-	help.position = Vector2(16, 12)
+	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	help.position += Vector2(16, -32)
 	help.modulate = Color(1, 1, 1, 0.6)
 	hud.add_child(help)
 
-	_served_label = Label.new()
-	_served_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_served_label.position += Vector2(-16, 12)
-	_served_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_served_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	hud.add_child(_served_label)
-	_on_served_changed(0)
+	_clock_label = Label.new()
+	_clock_label.add_theme_font_size_override("font_size", 28)
+	_clock_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_clock_label.position.y += 8
+	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_clock_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	hud.add_child(_clock_label)
+
+	_stats_label = Label.new()
+	_stats_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_stats_label.position += Vector2(-16, 12)
+	_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_stats_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	hud.add_child(_stats_label)
+
+	_report = ShiftReport.new()
+	_report.name = "ShiftReport"
+	_report.play_again.connect(_on_play_again)
+	hud.add_child(_report)
 
 
 func _on_looking_at_changed(text: String) -> void:
@@ -151,8 +177,28 @@ func _on_looking_at_changed(text: String) -> void:
 	_crosshair.modulate = Color(1, 0.8, 0.2) if text else Color.WHITE
 
 
-func _on_served_changed(count: int) -> void:
-	_served_label.text = "Guests served: %d" % count
+func _on_clock_changed(minutes: int) -> void:
+	_clock_label.text = Shift.format_clock(minutes)
+	if _shift.is_lunch_rush():
+		_clock_label.text += "  lunch rush"
+
+
+func _on_stats_changed() -> void:
+	_stats_label.text = "€%.2f   %.1f ★\nserved %d · took the stairs %d" % [_shift.money(), _shift.stars, _shift.served, _shift.lost]
+
+
+func _on_shift_ended() -> void:
+	get_tree().paused = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_crosshair.hide()
+	_looking_label.text = ""
+	_hint_label.text = ""
+	_report.show_for(_shift)
+
+
+func _on_play_again() -> void:
+	get_tree().paused = false
+	get_tree().reload_current_scene()
 
 
 func _show_hint(text: String) -> void:
