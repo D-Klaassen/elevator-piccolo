@@ -1,7 +1,8 @@
 class_name Guest
 extends StaticBody3D
-## A capsule placeholder guest. Waits in the hallway, rides the cab and walks out on
-## their floor. Look at them and click to hear which floor they want. Some guests strike
+## A guest, one of Kenney's Mini Characters. Waits in the hallway, rides the cab and walks
+## out on their floor. They walk and stand idle, nod when they thank you, shake their head
+## when they give up and gesture when they tell you where they're going. Look at them and click to hear which floor they want. Some guests strike
 ## up a chat during the ride and wait for your reply. A red "!" above their head means
 ## they're running out of patience. Whatever a guest says shows in a speech bubble above
 ## their head; for a Spanish guest, with what you understood underneath.
@@ -20,11 +21,33 @@ const TEMPERAMENTS: Array[Dictionary] = [
 	{"name": "patient", "wait": 90.0, "ride": 55.0},
 ]
 const IMPATIENT_SHARE := 2.0 / 3.0 ## share of their patience after which a guest shows it
-const RADIUS := 0.25
-const HEIGHT := 1.7
+const RADIUS := 0.3
+const HEIGHT := 1.35 ## the top of their head, at [constant MODEL_SCALE]
 ## Physics layer value for guests: the player's look ray sees them, the player's body walks through them.
 const COLLISION_LAYER := 2
 const BUBBLE_TIME := 6.0 ## seconds a speech bubble stays up
+
+const MODELS: Array[String] = [
+	"res://assets/kenney/mini-characters/character-female-a.glb",
+	"res://assets/kenney/mini-characters/character-female-b.glb",
+	"res://assets/kenney/mini-characters/character-female-c.glb",
+	"res://assets/kenney/mini-characters/character-female-d.glb",
+	"res://assets/kenney/mini-characters/character-female-e.glb",
+	"res://assets/kenney/mini-characters/character-female-f.glb",
+	"res://assets/kenney/mini-characters/character-male-a.glb",
+	"res://assets/kenney/mini-characters/character-male-b.glb",
+	"res://assets/kenney/mini-characters/character-male-c.glb",
+	"res://assets/kenney/mini-characters/character-male-d.glb",
+	"res://assets/kenney/mini-characters/character-male-e.glb",
+	"res://assets/kenney/mini-characters/character-male-f.glb",
+]
+const MODEL_SCALE := 1.7 ## the Mini Characters are 0.78 m tall; this makes them about 1.3 m
+## Animations in the models that loop; the others play once and go back to the loop.
+const IDLE := "idle"
+const WALK := "walk"
+const NOD := "emote-yes"
+const HEAD_SHAKE := "emote-no"
+const GESTURE := "interact-right"
 
 const LINES: Array[String] = [
 	"Floor %d, please.",
@@ -109,31 +132,38 @@ var waited := 0.0 ## seconds since they called; stops counting once they board
 var rode := 0.0 ## seconds since they started boarding
 var fed_up := false ## ran out of ride patience: gets out at the next open doors without paying
 
+var model := "" ## which of [constant MODELS] they look like
+## The animation playing now, or the loop they go back to after a one-off.
+var animation := ""
+
 var _tween: Tween
+var _animations: AnimationPlayer
+var _loop := IDLE
+var _one_off := false
 var _marker: Label3D
 var _bubble: Label3D
 var _under: Label3D
 var _bubble_timer: SceneTreeTimer
 
 
-func setup(p_home_floor: int, p_destination: int, color: Color, line_template: String) -> void:
+func setup(p_home_floor: int, p_destination: int, p_model: String, line_template: String) -> void:
 	home_floor = p_home_floor
 	destination = p_destination
+	model = p_model
 	line = line_template % destination
 	collision_layer = COLLISION_LAYER
 	collision_mask = 0
 
-	var body := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = RADIUS
-	capsule.height = HEIGHT
-	capsule.material = Greybox.material(color)
-	body.mesh = capsule
-	body.position.y = HEIGHT / 2
+	var body: Node3D = (load(model) as PackedScene).instantiate()
+	body.name = "Body"
+	body.scale = Vector3.ONE * MODEL_SCALE
+	body.rotation_degrees.y = 180.0 # the models face +Z; a guest faces -Z, as look_at() turns it
 	add_child(body)
-
-	# A nose so you can tell which way they face (-Z is forward).
-	Greybox.box(self, Vector3(0.1, 0.06, 0.12), Vector3(0, 1.45, -RADIUS), color.darkened(0.4), false)
+	_animations = body.find_children("*", "AnimationPlayer", true, false)[0]
+	for loop: String in [IDLE, WALK]:
+		_animations.get_animation(loop).loop_mode = Animation.LOOP_LINEAR
+	_animations.animation_finished.connect(_on_animation_finished)
+	_play_loop(IDLE)
 
 	var shape := CollisionShape3D.new()
 	var capsule_shape := CapsuleShape3D.new()
@@ -143,20 +173,20 @@ func setup(p_home_floor: int, p_destination: int, color: Color, line_template: S
 	shape.position.y = HEIGHT / 2
 	add_child(shape)
 
-	_marker = Greybox.label(self, "!", Vector3(0, HEIGHT + 0.25, 0), 0.0, 96)
+	_marker = Greybox.label(self, "!", Vector3(0, HEIGHT + 0.2, 0), 0.0, 96)
 	_marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_marker.modulate = Color(1, 0.2, 0.1)
 	_marker.outline_size = 12
 	_marker.hide()
 
-	_bubble = Greybox.label(self, "", Vector3(0, HEIGHT + 0.75, 0), 0.0, 36)
+	_bubble = Greybox.label(self, "", Vector3(0, HEIGHT + 0.55, 0), 0.0, 36)
 	_bubble.name = "Bubble"
 	_bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_bubble.outline_size = 10
 	_bubble.width = 600.0
 	_bubble.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_bubble.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	_under = Greybox.label(self, "", Vector3(0, HEIGHT + 0.7, 0), 0.0, 26)
+	_under = Greybox.label(self, "", Vector3(0, HEIGHT + 0.5, 0), 0.0, 26)
 	_under.name = "Understood"
 	_under.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_under.modulate = Color(1, 0.85, 0.4)
@@ -185,6 +215,7 @@ func press() -> void:
 	asked += 1
 	if language == "en":
 		say(line)
+	act(GESTURE)
 	talked_to.emit()
 
 
@@ -226,13 +257,37 @@ func walk(points: Array[Vector3], on_done := Callable(), delay := 0.0) -> void:
 	_tween = create_tween()
 	if delay > 0.0:
 		_tween.tween_interval(delay)
+	_tween.tween_callback(_play_loop.bind(WALK))
 	var from := global_position
 	for p in points:
 		_tween.tween_callback(face.bind(p))
 		_tween.tween_property(self, "global_position", p, from.distance_to(p) / WALK_SPEED)
 		from = p
+	_tween.tween_callback(_play_loop.bind(IDLE))
 	if on_done.is_valid():
 		_tween.tween_callback(on_done)
+
+
+## Plays [param one_off] (one of [constant NOD], [constant HEAD_SHAKE] or [constant GESTURE])
+## once, then goes back to standing or walking.
+func act(one_off: String) -> void:
+	_one_off = true
+	animation = one_off
+	_animations.play(one_off)
+
+
+## Stands or walks from now on; after the one-off playing now, if there is one.
+func _play_loop(loop: String) -> void:
+	_loop = loop
+	if _one_off:
+		return
+	animation = loop
+	_animations.play(loop)
+
+
+func _on_animation_finished(_name: StringName) -> void:
+	_one_off = false
+	_play_loop(_loop)
 
 
 ## Turns to look at [param target] (a global position), staying upright.

@@ -116,7 +116,7 @@ func spawn_guest(home: int, destination: int) -> Guest:
 	if spot < 0:
 		return null
 	var guest := Guest.new()
-	guest.setup(home, destination, Color.from_hsv(rng.randf(), 0.45, 0.85), Guest.LINES.pick_random())
+	guest.setup(home, destination, _pick_model(), Guest.LINES.pick_random())
 	if destination < Spanish.LINES.size() and rng.randf() < spanish_share:
 		guest.language = "es"
 		guest.helpfulness = Spanish.HELPFULNESS.keys()[rng.randi_range(0, Spanish.HELPFULNESS.size() - 1)]
@@ -142,6 +142,15 @@ func spawn_guest(home: int, destination: int) -> Guest:
 	_update_calls()
 	elevator.ding()
 	return guest
+
+
+## One of [constant Guest.MODELS] that no guest in the hotel is wearing right now, if there
+## is one, so you don't meet twins.
+func _pick_model() -> String:
+	var worn := _guests.map(func(g: Guest) -> String: return g.model)
+	var free := Guest.MODELS.filter(func(m: String) -> bool: return not worn.has(m))
+	var models: Array = free if not free.is_empty() else Guest.MODELS
+	return models[rng.randi_range(0, models.size() - 1)]
 
 
 ## A Spanish guest answers in a speech bubble: what you catch of their line, now and then an
