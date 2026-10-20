@@ -14,7 +14,7 @@ Controls: **WASD** to walk, **mouse** to look, **left click** to press the butto
 
 ### What's in it so far
 
-`scenes/cabin_greybox.tscn`: a greybox of the rustic cabin, with a 3-floor shaft, a hallway per floor and the elevator cab. The scene is built from code in `scripts/cabin_greybox.gd`. The elevator never moves on its own: close the doors with the `> <` button, pick a floor, and open the doors with `< >` when you arrive.
+`scenes/cabin_greybox.tscn`: a greybox of the rustic cabin, with a 3-floor shaft, a hallway per floor and the elevator cab. The scene is built from code in `scripts/cabin_greybox.gd`. The elevator only goes where you send it. Press floor buttons to queue them; they stay lit until the cab gets there. Once the doors are closed (`> <`), the cab rides to the next queued floor, stopping at any queued floor on the way. On arrival the doors open by themselves, and the cab waits until you close them again. The door buttons (`< >` open, `> <` close) stay lit until the doors have finished. Close waits for anyone in the doorway, and pressing open while the doors are closing reopens them.
 
 Guests (capsule placeholders) turn up in the hallways and wait by the elevator. The **Calls** lamps next to the buttons show which floors have someone waiting, with a ding for every new call. Open the doors on their floor and they walk in (up to 3 at a time); look at a guest and click to hear which floor they want. Open the doors on that floor and they walk out. Guests are spawned and moved by `scripts/guest_manager.gd`.
 
@@ -22,7 +22,11 @@ A shift runs from 08:00 to 18:00 (about 9 real minutes, clock at the top) and br
 
 ## Tests
 
-Headless scripted tests drive the cab through its own buttons. `guest_loop_test` serves three guests in a row; `shift_test` covers the clock, patience, pay and the end-of-shift report, then plays a whole shift with an autopilot:
+Headless scripted tests drive the cab through its own buttons. `elevator_test` covers the lit buttons and the floor queue; `guest_loop_test` serves three guests in a row; `shift_test` covers the clock, patience, pay and the end-of-shift report, then plays a whole shift with an autopilot:
+
+```bash
+godot --headless --path . --fixed-fps 60 --script tests/elevator_test.gd
+```
 
 ```bash
 godot --headless --path . --fixed-fps 60 --script tests/guest_loop_test.gd

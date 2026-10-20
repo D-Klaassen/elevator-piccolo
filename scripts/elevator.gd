@@ -1,7 +1,9 @@
 class_name Elevator
 extends Node3D
 ## The elevator cab: walls, sliding doors, the button panel, the call panel and the floor indicator.
-## It never moves on its own: only the in-cab buttons move it or work the doors.
+## It only goes where its floor buttons send it. Floor presses queue up and stay lit; once
+## the doors are closed it rides to the next one, and the doors open by themselves on arrival.
+## The door buttons stay lit until the doors have done what was asked.
 
 signal hint(text: String)
 
@@ -24,6 +26,11 @@ var door_blockers := 0 ## guests in the doorway; the doors won't close while thi
 var dings := 0 ## how many times the call bell rang
 var _moving := false
 var _doors_busy := false
+var _doors_target := true ## where the doors are headed: open (true) or closed (false)
+var _doors_moving_to := true
+var _door_tween: Tween
+var _queue: Array[int] = [] ## floors pressed and not reached yet, in the order they were pressed
+var _buttons := {} ## action -> ElevatorButton
 
 var _cab: AnimatableBody3D
 var _left_door: AnimatableBody3D
@@ -144,6 +151,7 @@ func _build_panel() -> void:
 		_cab.add_child(button)
 		button.setup(b[0], b[1], b[2])
 		button.pressed.connect(_on_button_pressed)
+		_buttons[b[0]] = button
 		y -= 0.16
 
 
@@ -194,26 +202,63 @@ func _on_button_pressed(button: ElevatorButton) -> void:
 			_request_floor(int(button.action))
 
 
+## Floors pressed and not reached yet, in the order they were pressed.
+func queued_floors() -> Array[int]:
+	return _queue.duplicate()
+
+
+func is_lit(action: String) -> bool:
+	return _buttons[action].lit
+
+
 func _request_floor(target: int) -> void:
-	if _moving or _doors_busy:
-		hint.emit("Wait a moment...")
-	elif doors_open:
-		hint.emit("Close the doors first.")
-	elif target == current_floor:
+	if target == current_floor and not _moving:
 		hint.emit("You're already on floor %d." % target)
-	else:
-		_move_to(target)
+	elif target not in _queue:
+		_queue.append(target)
+	_update_button_lights()
 
 
 func _request_doors(open: bool) -> void:
-	if _moving:
+	if open and _moving:
 		hint.emit("Not while moving!")
-	elif not open and door_blockers > 0:
-		hint.emit("Wait, someone is in the doorway.")
-	elif _doors_busy or open == doors_open:
 		return
-	else:
-		_set_doors(open, false)
+	_doors_target = open
+	if not open and door_blockers > 0:
+		hint.emit("Someone is in the doorway: the doors close once they're through.")
+	_update_button_lights()
+
+
+func _physics_process(_delta: float) -> void:
+	if not _moving:
+		if _doors_busy and _doors_target and not _doors_moving_to:
+			_set_doors(true, false) # reopen while closing
+		elif not _doors_busy and _doors_target != doors_open:
+			if _doors_target or door_blockers == 0:
+				_set_doors(_doors_target, false)
+		elif not _doors_busy and not doors_open and not _queue.is_empty():
+			_move_to(_next_stop())
+	_update_button_lights()
+
+
+## The next floor to stop at: heading towards the floor pressed first, stop at the
+## nearest pressed floor on the way.
+func _next_stop() -> int:
+	var direction := signi(_queue[0] - current_floor)
+	var best := _queue[0]
+	for f in _queue:
+		if signi(f - current_floor) == direction and absi(f - current_floor) < absi(best - current_floor):
+			best = f
+	return best
+
+
+func _update_button_lights() -> void:
+	var fully_open := doors_open and not _doors_busy
+	var fully_closed := not doors_open and not _doors_busy
+	_buttons["open"].set_lit(_doors_target and not fully_open)
+	_buttons["close"].set_lit(not _doors_target and not fully_closed)
+	for f in floor_count:
+		_buttons[str(f)].set_lit(f in _queue)
 
 
 func _move_to(target: int) -> void:
@@ -234,6 +279,9 @@ func _process(delta: float) -> void:
 func _arrive(target: int) -> void:
 	current_floor = target
 	_moving = false
+	_queue.erase(target)
+	_doors_target = true # the doors open by themselves on arrival
+	_update_button_lights()
 	hint.emit("Ding! Floor %d." % target)
 
 
@@ -249,13 +297,19 @@ func _set_doors(open: bool, instant: bool) -> void:
 		doors_open = open
 		return
 
+	if _door_tween:
+		_door_tween.kill()
 	_doors_busy = true
-	var tween := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS).set_parallel()
-	tween.tween_property(_left_door, "position:x", left_x, DOOR_TIME)
-	tween.tween_property(_right_door, "position:x", right_x, DOOR_TIME)
-	tween.chain().tween_callback(_doors_done.bind(open))
+	_doors_moving_to = open
+	# Reopening halfway takes only the time needed for the rest of the way.
+	var time := DOOR_TIME * absf(_left_door.position.x - left_x) / (DOOR_OPENING / 2)
+	_door_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS).set_parallel()
+	_door_tween.tween_property(_left_door, "position:x", left_x, time)
+	_door_tween.tween_property(_right_door, "position:x", right_x, time)
+	_door_tween.chain().tween_callback(_doors_done.bind(open))
 
 
 func _doors_done(open: bool) -> void:
 	doors_open = open
 	_doors_busy = false
+	_update_button_lights()
