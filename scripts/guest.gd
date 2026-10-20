@@ -14,9 +14,9 @@ enum Reply { GOOD, NEUTRAL, BAD }
 const WALK_SPEED := 1.2 ## metres per second
 ## How long each kind of guest waits for the cab, and puts up with the ride, in seconds.
 const TEMPERAMENTS: Array[Dictionary] = [
-	{"name": "hasty", "wait": 30.0, "ride": 18.0},
-	{"name": "normal", "wait": 45.0, "ride": 25.0},
-	{"name": "patient", "wait": 60.0, "ride": 35.0},
+	{"name": "hasty", "wait": 45.0, "ride": 30.0},
+	{"name": "normal", "wait": 65.0, "ride": 40.0},
+	{"name": "patient", "wait": 90.0, "ride": 55.0},
 ]
 const IMPATIENT_SHARE := 2.0 / 3.0 ## share of their patience after which a guest shows it
 const RADIUS := 0.25
