@@ -9,13 +9,41 @@ var _scene: Node3D
 var _elevator: Elevator
 var _guests: GuestManager
 var _shift: Shift
+var _errors := ErrorLog.new()
+
+
+## Collects every script and engine error logged during the run. A script error aborts
+## only the function it happens in and its caller carries on, so without this the
+## skipped checks would go unnoticed. Godot's own logger still prints each error.
+class ErrorLog extends Logger:
+	var _lock := Mutex.new()
+	var _seen: PackedStringArray = []
+
+	func _log_error(function: String, file: String, line: int, code: String, rationale: String,
+			_editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type == ERROR_TYPE_WARNING:
+			return
+		var kind: String = ["error", "warning", "script error", "shader error"][error_type]
+		var text := rationale if rationale else code
+		_lock.lock()
+		_seen.append("%s: %s (%s:%d in %s)" % [kind, text, file, line, function])
+		_lock.unlock()
+
+	func take() -> PackedStringArray:
+		_lock.lock()
+		var seen := _seen
+		_seen = []
+		_lock.unlock()
+		return seen
 
 
 func _initialize() -> void:
+	OS.add_logger(_errors)
 	# Fail instead of hanging if a script error stops the run.
 	create_timer(1500.0, true).timeout.connect(func() -> void:
+		_check_errors()
 		print("%s: TIMED OUT" % _name())
-		quit(1))
+		_quit(1))
 	_start.call_deferred()
 
 
@@ -23,8 +51,19 @@ func _start() -> void:
 	_load_scene(load("res://scenes/cabin_greybox.tscn").instantiate())
 	await physics_frame
 	await _run()
+	_check_errors()
 	print("%s: %s" % [_name(), "PASS" if _failures == 0 else "%d FAILED" % _failures])
-	quit(1 if _failures else 0)
+	_quit(1 if _failures else 0)
+
+
+func _check_errors() -> void:
+	for error in _errors.take():
+		_check(false, error)
+
+
+func _quit(code: int) -> void:
+	OS.remove_logger(_errors)
+	quit(code)
 
 
 func _run() -> void:
