@@ -27,7 +27,6 @@ A game design + tech spec for a playable **vertical slice**: engine chosen, firs
 ## Not yet specified
 
 - Language roster: which languages beyond Spanish, and which hotel introduces each.
-- Cosmetics (uniform, cab decoration): after the demo.
 - Guest variety: archetypes, patience, VIPs, groups, multiple guests with different floors in one ride.
 - Art pipeline: asset sources (store packs vs Blender), characters and animation for guests.
 - Save system, settings, controller/Steam Deck input.
@@ -36,3 +35,4 @@ A game design + tech spec for a playable **vertical slice**: engine chosen, firs
 ## Out of scope
 
 - Multiplayer.
+- Cosmetics (uniform, cab decoration): no gameplay effect, decided against for the demo in the upgrades ticket.
