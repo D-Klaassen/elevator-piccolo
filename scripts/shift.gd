@@ -15,6 +15,10 @@ const LUNCH_START := 12 * 60
 const LUNCH_END := 13 * 60 + 30
 const GUESTS := 15 ## guests per shift in the rustic cabin
 const LUNCH_GUESTS := 5 ## of those, the ones who come during the lunch rush
+## The first guest calls right away, from the ground floor where the cab starts, so a
+## shift never opens with nothing to do.
+const FIRST_GUEST_AT := START + 5
+const FIRST_GUEST_FLOOR := 0
 
 const WAGE := 5.0 ## the near-nothing base pay, paid at the end of the shift
 const FARE := 2.0
@@ -66,7 +70,8 @@ func _process(delta: float) -> void:
 		clock_changed.emit(int(minutes))
 
 	while spawning and not _schedule.is_empty() and _schedule[0] <= minutes and minutes < END:
-		if guests.spawn_random() == null:
+		var home := FIRST_GUEST_FLOOR if spawned == 0 else -1
+		if guests.spawn_random(home) == null:
 			break # no room in the hallways; try again next frame
 		_schedule.pop_front()
 		spawned += 1
@@ -89,9 +94,9 @@ func is_fired() -> bool:
 
 ## When the guests of one shift call, in minutes since midnight, sorted.
 static func make_schedule(r: RandomNumberGenerator) -> Array[float]:
-	var times: Array[float] = []
-	for i in GUESTS - LUNCH_GUESTS:
-		times.append(r.randf_range(START + 5, END - 30))
+	var times: Array[float] = [float(FIRST_GUEST_AT)]
+	for i in GUESTS - LUNCH_GUESTS - 1:
+		times.append(r.randf_range(FIRST_GUEST_AT, END - 30))
 	for i in LUNCH_GUESTS:
 		times.append(r.randf_range(LUNCH_START, LUNCH_END))
 	times.sort()

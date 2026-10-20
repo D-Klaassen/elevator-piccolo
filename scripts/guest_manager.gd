@@ -73,14 +73,16 @@ func reply(choice: Guest.Reply) -> void:
 	_close_talk()
 
 
-## Spawns a guest on a random floor with a free spot, going to another random floor.
-func spawn_random() -> Guest:
+## Spawns a guest going to a random other floor, on floor [param home] or, when that is -1,
+## on a random floor with a free spot.
+func spawn_random(home := -1) -> Guest:
 	if _guests.filter(func(g: Guest) -> bool: return _is_calling(g)).size() >= MAX_WAITING:
 		return null
-	var floors := range(elevator.floor_count).filter(func(f: int) -> bool: return _free_wait_spot(f) >= 0)
-	if floors.is_empty():
-		return null
-	var home: int = floors[rng.randi_range(0, floors.size() - 1)]
+	if home < 0:
+		var floors := range(elevator.floor_count).filter(func(f: int) -> bool: return _free_wait_spot(f) >= 0)
+		if floors.is_empty():
+			return null
+		home = floors[rng.randi_range(0, floors.size() - 1)]
 	var destination := rng.randi_range(0, elevator.floor_count - 2)
 	if destination >= home:
 		destination += 1

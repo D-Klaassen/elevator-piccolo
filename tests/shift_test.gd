@@ -22,6 +22,7 @@ func _test_rules() -> void:
 	var times := Shift.make_schedule(r)
 	_check(times.size() == Shift.GUESTS, "%d guests per shift" % Shift.GUESTS)
 	_check(times == _sorted(times), "the schedule is in order")
+	_check(times[0] == Shift.FIRST_GUEST_AT, "the first guest calls at %s" % Shift.format_clock(times[0]))
 	_check(times.all(func(t: float) -> bool: return t >= Shift.START and t < Shift.END), "every guest comes between 08:00 and 18:00")
 	var lunch := times.filter(func(t: float) -> bool: return t >= Shift.LUNCH_START and t < Shift.LUNCH_END).size()
 	var lunch_rate := lunch / float(Shift.LUNCH_END - Shift.LUNCH_START)
@@ -133,9 +134,12 @@ func _test_full_shift() -> void:
 	# every greeting friendly.
 	_shift.spawning = true
 	var temperaments := {}
+	var first := {} # floor and clock time of the first guest
 	_guests.child_entered_tree.connect(func(node: Node) -> void:
 		if node is Guest:
-			temperaments[node.temperament] = true)
+			temperaments[node.temperament] = true
+			if first.is_empty():
+				first.merge({"floor": node.home_floor, "minutes": _shift.minutes}))
 	var rides := 0
 	var friendly := [0] # an array, so the lambdas can count
 	_guests.greeted.connect(func(_guest: Guest) -> void: _guests.reply.call_deferred(Guest.Reply.FRIENDLY))
@@ -151,6 +155,8 @@ func _test_full_shift() -> void:
 	print("     autopilot made %d rides and %d friendly replies" % [rides, friendly[0]])
 
 	_check(_shift.is_over, "a whole shift can be played to the end")
+	_check(first.floor == Shift.FIRST_GUEST_FLOOR and first.minutes < Shift.FIRST_GUEST_AT + 1,
+		"the first guest turns up on floor %d at %s" % [first.floor, Shift.format_clock(first.minutes)])
 	_check(_shift.spawned == Shift.GUESTS, "all %d guests turned up (%d)" % [Shift.GUESTS, _shift.spawned])
 	_check(_shift.served + _shift.lost == _shift.spawned, "every guest was served or gave up (%d + %d)" % [_shift.served, _shift.lost])
 	_check(_shift.served >= Shift.GUESTS / 2, "the autopilot serves most guests (%d)" % _shift.served)
