@@ -1,10 +1,10 @@
 class_name SettingsMenu
 extends PanelContainer
-## The settings panel: sliders for the volume and the mouse sensitivity, saved as soon as
-## they move. During a shift Esc opens it as the pause menu, and Esc or Resume closes it
-## again; the staff room opens it with its Settings button.
+## The settings panel: sliders for the volume and the look sensitivity, saved as soon as
+## they move. During a shift Esc (or Start) opens it as the pause menu, and Esc, Start, B or
+## Resume closes it again; the staff room opens it with its Settings button.
 
-## Esc was pressed during a shift while the menu was closed.
+## Esc or Start was pressed during a shift while the menu was closed.
 signal pause_requested
 signal closed
 signal changed
@@ -48,7 +48,7 @@ func _ready() -> void:
 
 	_sensitivity_label = Label.new()
 	box.add_child(_sensitivity_label)
-	_sensitivity = _slider("MouseSensitivity", Settings.MIN_SENSITIVITY, Settings.MAX_SENSITIVITY, 0.05)
+	_sensitivity = _slider("LookSensitivity", Settings.MIN_SENSITIVITY, Settings.MAX_SENSITIVITY, 0.05)
 	_sensitivity.value_changed.connect(_on_sensitivity_changed)
 	box.add_child(_sensitivity)
 
@@ -75,12 +75,11 @@ func _slider(slider_name: String, from: float, to: float, step: float) -> HSlide
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed("ui_cancel"):
-		return
-	if visible:
+	var pause := event.is_action_pressed("pause")
+	if visible and (pause or event.is_action_pressed("ui_cancel")):
 		close()
 		get_viewport().set_input_as_handled()
-	elif not get_tree().paused:
+	elif pause and not visible and not get_tree().paused:
 		pause_requested.emit()
 		get_viewport().set_input_as_handled()
 
@@ -91,7 +90,7 @@ func open(paused_shift: bool) -> void:
 	_title.text = "Paused" if paused_shift else "Settings"
 	_close.text = "Resume" if paused_shift else "Back"
 	_volume.set_value_no_signal(settings.volume)
-	_sensitivity.set_value_no_signal(settings.mouse_sensitivity)
+	_sensitivity.set_value_no_signal(settings.look_sensitivity)
 	_update_labels()
 	show()
 	_close.grab_focus()
@@ -109,7 +108,7 @@ func _on_volume_changed(value: float) -> void:
 
 
 func _on_sensitivity_changed(value: float) -> void:
-	settings.mouse_sensitivity = value
+	settings.look_sensitivity = value
 	_saved()
 
 
@@ -123,4 +122,4 @@ func _saved() -> void:
 
 func _update_labels() -> void:
 	_volume_label.text = "Volume: %d%%" % roundi(settings.volume * 100)
-	_sensitivity_label.text = "Mouse sensitivity: ×%.2f" % settings.mouse_sensitivity
+	_sensitivity_label.text = "Look sensitivity: ×%.2f" % settings.look_sensitivity

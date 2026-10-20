@@ -1,6 +1,6 @@
 class_name Settings
 extends RefCounted
-## The player's settings: volume and mouse sensitivity. Saved apart from the career, so a
+## The player's settings: volume and look sensitivity. Saved apart from the career, so a
 ## new career keeps them, and loaded at the start of every shift.
 
 const DEFAULT_PATH := "user://settings.cfg"
@@ -15,10 +15,11 @@ static var save_path := DEFAULT_PATH
 var volume := 0.8:
 	set(value):
 		volume = clampf(value, 0.0, 1.0)
-## Multiplies [constant Player.MOUSE_SENSITIVITY].
-var mouse_sensitivity := 1.0:
+## How fast the mouse and the right stick turn the view: multiplies
+## [constant Player.MOUSE_SENSITIVITY] and [constant Player.STICK_LOOK_SPEED].
+var look_sensitivity := 1.0:
 	set(value):
-		mouse_sensitivity = clampf(value, MIN_SENSITIVITY, MAX_SENSITIVITY)
+		look_sensitivity = clampf(value, MIN_SENSITIVITY, MAX_SENSITIVITY)
 
 
 ## The saved settings, or the defaults if there is no save yet.
@@ -28,14 +29,14 @@ static func load_saved() -> Settings:
 	if file.load(save_path) != OK:
 		return settings
 	settings.volume = file.get_value("settings", "volume", settings.volume)
-	settings.mouse_sensitivity = file.get_value("settings", "mouse_sensitivity", settings.mouse_sensitivity)
+	settings.look_sensitivity = file.get_value("settings", "look_sensitivity", settings.look_sensitivity)
 	return settings
 
 
 func save() -> Error:
 	var file := ConfigFile.new()
 	file.set_value("settings", "volume", volume)
-	file.set_value("settings", "mouse_sensitivity", mouse_sensitivity)
+	file.set_value("settings", "look_sensitivity", look_sensitivity)
 	return file.save(save_path)
 
 
