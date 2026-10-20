@@ -42,6 +42,15 @@ const LADDER: Array[Dictionary] = [
 	},
 ]
 
+## The hotel after the last one in the ladder, where the demo ends: applying there, with
+## the same rating as any move up, shows the "to be continued" screen instead of moving.
+const DEMO_END := {
+	"id": "grand",
+	"name": "Grand Hotel",
+	"floors": 12,
+	"language": "French",
+}
+
 ## The upgrades that stay behind when you move: they belong to the old hotel's cab.
 const HARDWARE: Array[String] = [Upgrades.CALLS, Upgrades.CAB, Upgrades.DOORS]
 
@@ -52,3 +61,9 @@ static func at(index: int) -> Dictionary:
 
 static func is_last(index: int) -> bool:
 	return index >= LADDER.size() - 1
+
+
+## The hotel you apply to from [param index]: the next one in the ladder, or
+## [constant DEMO_END] from the last.
+static func next_after(index: int) -> Dictionary:
+	return DEMO_END if is_last(index) else LADDER[index + 1]
