@@ -1,6 +1,6 @@
 class_name Elevator
 extends Node3D
-## The elevator cab: walls, sliding doors, the button panel and the floor indicator.
+## The elevator cab: walls, sliding doors, the button panel, the call panel and the floor indicator.
 ## It never moves on its own: only the in-cab buttons move it or work the doors.
 
 signal hint(text: String)
@@ -18,6 +18,8 @@ const DOOR_TIME := 0.8 ## seconds
 
 var current_floor := 0
 var doors_open := true
+var door_blockers := 0 ## guests in the doorway; the doors won't close while this is above 0
+var dings := 0 ## how many times the call bell rang
 var _moving := false
 var _doors_busy := false
 
@@ -25,13 +27,43 @@ var _cab: AnimatableBody3D
 var _left_door: AnimatableBody3D
 var _right_door: AnimatableBody3D
 var _indicator: Label3D
+var _call_lamps: Array[MeshInstance3D] = []
+var _ding_player: AudioStreamPlayer
 
 
 func _ready() -> void:
 	_build_cab()
 	_build_doors()
 	_build_panel()
+	_build_call_panel()
+	_ding_player = AudioStreamPlayer.new()
+	_ding_player.stream = _make_ding()
+	add_child(_ding_player)
 	_set_doors(true, true)
+
+
+func get_cab() -> AnimatableBody3D:
+	return _cab
+
+
+## True when the doors are fully open and the cab is standing still.
+func is_open_at_rest() -> bool:
+	return doors_open and not _moving and not _doors_busy
+
+
+## Lights or dims the call lamp of floor [param f].
+func set_call(f: int, waiting: bool) -> void:
+	var mat: StandardMaterial3D = _call_lamps[f].mesh.material
+	mat.albedo_color = Color(1, 0.35, 0.2) if waiting else Color(0.2, 0.15, 0.12)
+	mat.emission_enabled = waiting
+	mat.emission = Color(1, 0.3, 0.1)
+
+
+func ding() -> void:
+	dings += 1
+	# The headless (Dummy) audio driver never finishes a sound, which leaks it at quit.
+	if AudioServer.get_driver_name() != "Dummy":
+		_ding_player.play()
 
 
 func _build_cab() -> void:
@@ -98,6 +130,41 @@ func _build_panel() -> void:
 		y -= 0.16
 
 
+func _build_call_panel() -> void:
+	# Next to the button panel: one lamp per floor, level with that floor's button.
+	var panel_x := -(CAB_HALF_WIDTH - WALL / 2 - 0.02)
+	var z := 0.3
+	var top := 1.0 + 0.16 * (floor_count + 1)
+	Greybox.box(_cab, Vector3(0.02, 0.16 * floor_count + 0.2, 0.2), Vector3(panel_x - 0.01, top - 0.16 * (floor_count - 1) / 2.0 + 0.04, z), Color(0.15, 0.13, 0.12), false)
+	var header := Greybox.label(_cab, "Calls", Vector3(panel_x + 0.01, top + 0.14, z), 90.0, 20)
+	header.modulate = Color(0.95, 0.9, 0.8)
+	_call_lamps.resize(floor_count)
+	for f in floor_count:
+		var y := top - 0.16 * (floor_count - 1 - f)
+		var lamp := Greybox.box(_cab, Vector3(0.03, 0.1, 0.1), Vector3(panel_x + 0.01, y, z), Color.BLACK, false) as MeshInstance3D
+		_call_lamps[f] = lamp
+		var caption := Greybox.label(_cab, str(f), Vector3(panel_x + 0.03, y, z), 90.0, 22)
+		caption.modulate = Color.BLACK
+		set_call(f, false)
+
+
+## A short bell tone, generated so the project needs no audio files.
+static func _make_ding() -> AudioStreamWAV:
+	var rate := 22050
+	var length := int(rate * 0.9)
+	var data := PackedByteArray()
+	data.resize(length * 2)
+	for i in length:
+		var t := float(i) / rate
+		var v := (sin(TAU * 1318.5 * t) + 0.35 * sin(TAU * 2637.0 * t)) * exp(-5.0 * t) * 0.45
+		data.encode_s16(i * 2, int(v * 32767))
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = rate
+	wav.data = data
+	return wav
+
+
 func _on_button_pressed(button: ElevatorButton) -> void:
 	match button.action:
 		"open":
@@ -122,6 +189,8 @@ func _request_floor(target: int) -> void:
 func _request_doors(open: bool) -> void:
 	if _moving:
 		hint.emit("Not while moving!")
+	elif not open and door_blockers > 0:
+		hint.emit("Wait, someone is in the doorway.")
 	elif _doors_busy or open == doors_open:
 		return
 	else:
