@@ -13,7 +13,7 @@ h1{font-size:18px}.note{opacity:.7;font-size:13px}
 pre{background:#111;padding:10px;font-size:12px;overflow:auto}.log div{font-size:14px}
 </style></head><body>
 <h1>PROTOTYPE: understanding guests (English known, Spanish not)</h1>
-<p class="note">Throwaway. English guests: you understand everything. Spanish guests speak real Spanish, but you don't catch every word or know how it's spelled, so what you "hear" is a bit off. Grey "…" = a word you missed. Green = English words they mix in. Helpful guests point or add English, unhelpful ones don't. Turn on the upgrade to get English subtitles.</p>
+<p class="note">Throwaway. English guests: you understand everything. Spanish guests speak real Spanish, but you don't catch every word or know how it's spelled, so what you "hear" is a bit off. Grey "…" = a word you missed. Green = English words they mix in: never the floor name, just a clue (\"hungry\", \"water\"). Helpful guests give hints less often and mostly mime; ask them again and they hold up fingers. Turn on the upgrade to get English subtitles.</p>
 <div class="row">
  <label><input type="checkbox" id="learned" onchange="S.learnedSpanish=this.checked;draw()"> Upgrade: learned Spanish (subtitles)</label>
  <label>Spanish guests: <input type="range" id="mix" min="0" max="100" value="60" oninput="S.spanishPct=+this.value;document.getElementById('mixv').textContent=this.value+'%'"> <span id="mixv">60%</span></label>
@@ -44,11 +44,11 @@ const ES={0:[["Quiero ir a la recepción, por favor.","I want to go to reception
 4:[["¿Dónde está la piscina? Quiero nadar.","Where is the pool? I want to swim."],["Voy a la piscina con los niños.","I'm going to the pool with the kids."]],
 5:[["Tengo una cita para un masaje.","I have an appointment for a massage."],["Quiero relajarme un poco, por favor.","I want to relax a little, please."]],
 6:[["Quiero tomar una copa en la azotea.","I want to have a drink on the rooftop."],["Arriba del todo, a la terraza.","All the way up, to the terrace."]]};
-const HELP_EN={0:["lobby","taxi","check out"],1:["one","room"],2:["two","room"],3:["eat","restaurant","food"],4:["swim","pool"],5:["massage","relax"],6:["drink","top","bar"]};
+const HELP_EN={0:["taxi","bags","bye bye"],1:["sleep","bed"],2:["sleep","bed"],3:["hungry","dinner"],4:["water","towel"],5:["tired","back hurts"],6:["drink","up, up","sky"]};
 const FINGERS=["👇 points down","☝️ holds up one finger","✌️ holds up two fingers","🤟 holds up three fingers","🖖 holds up four fingers","🖐️ holds up five fingers","🖐️☝️ holds up six fingers"];
 const MIMES={3:"🍽️ mimes eating",4:"🏊 mimes swimming",5:"💆 rubs their shoulders",6:"🍸 mimes drinking",0:"🧳 shows their suitcase"};
 const GUESTS=["🧔","👩‍🦰","👴","👩🏽","🧑‍🦱","👱‍♀️","👨🏻‍🦳","👩🏾"];
-const TYPES={helpful:{label:"helpful",en:.6,gesture:.8},neutral:{label:"neutral",en:.3,gesture:.3},unhelpful:{label:"doesn't try",en:0,gesture:0}};
+const TYPES={helpful:{label:"helpful",en:.35,gesture:.4},neutral:{label:"neutral",en:.15,gesture:.1},unhelpful:{label:"doesn't try",en:0,gesture:0}};
 let S={learnedSpanish:false,spanishPct:60,lang:"en",type:null,floor:0,lineIdx:0,patience:3,money:0,right:0,wrong:0,heard:"",englishMixed:[],gesture:""};
 const pick=a=>a[Math.random()*a.length|0];
 // what a non-speaker hears: phonetic spelling, no accents, some words lost
@@ -73,7 +73,7 @@ function draw(){
 function hear(){const t=TYPES[S.type];
  S.heard=ES[S.floor][S.lineIdx][0].split(" ").map(mishear).join(" ");
  S.englishMixed=Math.random()<t.en?[pick(HELP_EN[S.floor])]:[];
- S.gesture=Math.random()<t.gesture?(Math.random()<.5||!MIMES[S.floor]?FINGERS[S.floor]:MIMES[S.floor]):"";}
+ S.gesture=Math.random()<t.gesture?(Math.random()<.3||!MIMES[S.floor]?FINGERS[S.floor]:MIMES[S.floor]):"";}
 function next(){
  S.floor=Math.random()*7|0;S.patience=3;S.lineIdx=Math.random()*2|0;
  S.lang=Math.random()*100<S.spanishPct?"es":"en";
