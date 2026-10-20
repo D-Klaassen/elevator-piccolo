@@ -1,7 +1,7 @@
 extends Node3D
-## Greybox of the hotel you work in (the rustic cabin, then Pension Bellevue and up): a shaft
-## with a hallway on every floor, the elevator cab, the player standing inside it, the
-## guests, the shift and a minimal HUD.
+## The hotel you work in (the rustic cabin, then Pension Bellevue and up), built from boxes
+## and dressed in its own style ([Interior]): a shaft with a hallway on every floor, the
+## elevator cab, the player standing inside it, the guests, the shift and a minimal HUD.
 ## Every shift loads the saved career, fits the cab with the upgrades bought, and saves the
 ## career again once the shift is over. Between shifts you go through the staff room.
 ## Esc pauses the shift and opens the settings.
@@ -117,35 +117,42 @@ func _build_shaft() -> void:
 
 func _build_landing(f: int) -> void:
 	var y := f * Elevator.FLOOR_HEIGHT
-	var floor_color := Color(0.45, 0.35, 0.25) if f % 2 == 0 else Color(0.35, 0.4, 0.3)
-	var wall_color := Color(0.75, 0.7, 0.6)
+	var hotel_id: String = _career.hotel_info().id
+	var look := Interior.style(hotel_id)
+	var floor_surface := Interior.material(look.floor)
+	var wall_surface := Interior.material(look.wall)
 	var wall_h := Elevator.FLOOR_HEIGHT - 0.2
 	var front := Elevator.CAB_HALF_WIDTH + 0.05
 	var back := front + HALL_DEPTH
 
 	# Hallway floor; it also acts as the ceiling of the hallway below.
-	Greybox.box(self, Vector3(HALL_WIDTH, 0.2, HALL_DEPTH), Vector3(0, y - 0.1, front + HALL_DEPTH / 2), floor_color)
+	Greybox.box(self, Vector3(HALL_WIDTH, 0.2, HALL_DEPTH), Vector3(0, y - 0.1, front + HALL_DEPTH / 2), Color.WHITE, true, floor_surface)
 
 	# Landing wall facing the hallway, with an opening in front of the cab door.
 	var half := HALL_WIDTH / 2
 	var opening := Elevator.DOOR_OPENING / 2
 	var side := half - opening
 	var wall_z := SHAFT_FRONT + 0.05
-	Greybox.box(self, Vector3(side, wall_h, 0.1), Vector3(-(opening + side / 2), y + wall_h / 2, wall_z), wall_color)
-	Greybox.box(self, Vector3(side, wall_h, 0.1), Vector3(opening + side / 2, y + wall_h / 2, wall_z), wall_color)
+	Greybox.box(self, Vector3(side, wall_h, 0.1), Vector3(-(opening + side / 2), y + wall_h / 2, wall_z), Color.WHITE, true, wall_surface)
+	Greybox.box(self, Vector3(side, wall_h, 0.1), Vector3(opening + side / 2, y + wall_h / 2, wall_z), Color.WHITE, true, wall_surface)
 	var lintel_h := wall_h - Elevator.DOOR_HEIGHT
-	Greybox.box(self, Vector3(Elevator.DOOR_OPENING, lintel_h, 0.1), Vector3(0, y + Elevator.DOOR_HEIGHT + lintel_h / 2, wall_z), wall_color)
+	Greybox.box(self, Vector3(Elevator.DOOR_OPENING, lintel_h, 0.1), Vector3(0, y + Elevator.DOOR_HEIGHT + lintel_h / 2, wall_z), Color.WHITE, true, wall_surface)
 
 	# Hallway side and back walls.
-	Greybox.box(self, Vector3(0.1, wall_h, HALL_DEPTH), Vector3(-half, y + wall_h / 2, front + HALL_DEPTH / 2), wall_color)
-	Greybox.box(self, Vector3(0.1, wall_h, HALL_DEPTH), Vector3(half, y + wall_h / 2, front + HALL_DEPTH / 2), wall_color)
-	Greybox.box(self, Vector3(HALL_WIDTH, wall_h, 0.1), Vector3(0, y + wall_h / 2, back), wall_color)
+	Greybox.box(self, Vector3(0.1, wall_h, HALL_DEPTH), Vector3(-half, y + wall_h / 2, front + HALL_DEPTH / 2), Color.WHITE, true, wall_surface)
+	Greybox.box(self, Vector3(0.1, wall_h, HALL_DEPTH), Vector3(half, y + wall_h / 2, front + HALL_DEPTH / 2), Color.WHITE, true, wall_surface)
+	Greybox.box(self, Vector3(HALL_WIDTH, wall_h, 0.1), Vector3(0, y + wall_h / 2, back), Color.WHITE, true, wall_surface)
 
 	# Floor sign on the back wall, facing the elevator (-Z).
 	var places: Array = _career.hotel_info().places
 	var sign_text := "Floor %d" % f if places.is_empty() else "Floor %d · %s" % [f, places[f]]
 	var sign_label := Greybox.label(self, sign_text, Vector3(0, y + 2.0, back - 0.06), 180.0, 96 if places.is_empty() else 72)
-	sign_label.modulate = Color(0.2, 0.15, 0.1)
+
+	# Skirting, door frame, ceiling and lamp: looks only, no collision.
+	var trim := Node3D.new()
+	trim.name = "Trim%d" % f
+	add_child(trim)
+	Interior.trim_hallway(trim, hotel_id, y, wall_h, half, wall_z, back, sign_label)
 
 	var furniture := Node3D.new()
 	furniture.name = "Furniture%d" % f

@@ -10,12 +10,13 @@ static func material(color: Color) -> StandardMaterial3D:
 
 
 ## Adds a box mesh to [param parent]. When [param with_collision] is true and the
-## parent is not already a physics body, the box gets its own StaticBody3D.
-static func box(parent: Node3D, size: Vector3, center: Vector3, color: Color, with_collision := true) -> Node3D:
+## parent is not already a physics body, the box gets its own StaticBody3D. A
+## [param surface] material, if given, is used instead of plain [param color].
+static func box(parent: Node3D, size: Vector3, center: Vector3, color: Color, with_collision := true, surface: Material = null) -> Node3D:
 	var mesh := MeshInstance3D.new()
 	var box_mesh := BoxMesh.new()
 	box_mesh.size = size
-	box_mesh.material = material(color)
+	box_mesh.material = surface if surface else material(color)
 	mesh.mesh = box_mesh
 
 	if not with_collision:
