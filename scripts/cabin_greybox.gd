@@ -1,6 +1,6 @@
 extends Node3D
 ## Greybox of the rustic cabin: a 3-floor shaft with a hallway on every floor,
-## the elevator cab, the player standing inside it and a minimal HUD.
+## the elevator cab, the player standing inside it, the guests and a minimal HUD.
 
 const FLOORS := 3
 const HALL_WIDTH := 6.0
@@ -10,6 +10,7 @@ const SHAFT_FRONT := 1.1 ## z where the landing wall starts, just in front of th
 var _hint_label: Label
 var _crosshair: Label
 var _looking_label: Label
+var _served_label: Label
 var _hint_timer: SceneTreeTimer
 
 
@@ -20,18 +21,27 @@ func _ready() -> void:
 		_build_landing(f)
 
 	var elevator := Elevator.new()
+	elevator.name = "Elevator"
 	elevator.floor_count = FLOORS
 	add_child(elevator)
 
+	var guests := GuestManager.new()
+	guests.name = "Guests"
+	guests.elevator = elevator
+	add_child(guests)
+
 	var player := Player.new()
+	player.name = "Player"
 	player.position = Vector3(0, 0.05, -0.3)
 	player.rotation_degrees.y = 180.0 # face the doors (+Z)
 	add_child(player)
 
 	_build_hud()
 	elevator.hint.connect(_show_hint)
+	guests.said.connect(_show_hint)
+	guests.served_changed.connect(_on_served_changed)
 	player.looking_at_changed.connect(_on_looking_at_changed)
-	_show_hint("Look at the panel on the right and click a button.")
+	_show_hint("Guests call from the hallways: watch the Calls lamps on your right.")
 
 
 func _build_environment() -> void:
@@ -122,15 +132,27 @@ func _build_hud() -> void:
 	hud.add_child(_hint_label)
 
 	var help := Label.new()
-	help.text = "WASD walk · mouse look · click a button · Esc frees the mouse"
+	help.text = "WASD walk · mouse look · click a button or a guest · Esc frees the mouse"
 	help.position = Vector2(16, 12)
 	help.modulate = Color(1, 1, 1, 0.6)
 	hud.add_child(help)
+
+	_served_label = Label.new()
+	_served_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_served_label.position += Vector2(-16, 12)
+	_served_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_served_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	hud.add_child(_served_label)
+	_on_served_changed(0)
 
 
 func _on_looking_at_changed(text: String) -> void:
 	_looking_label.text = text
 	_crosshair.modulate = Color(1, 0.8, 0.2) if text else Color.WHITE
+
+
+func _on_served_changed(count: int) -> void:
+	_served_label.text = "Guests served: %d" % count
 
 
 func _show_hint(text: String) -> void:

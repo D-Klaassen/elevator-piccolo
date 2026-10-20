@@ -1,6 +1,6 @@
 class_name Player
 extends CharacterBody3D
-## First-person player: WASD to walk, mouse to look, click to press what you look at.
+## First-person player: WASD to walk, mouse to look, click to press (or talk to) what you look at.
 
 signal looking_at_changed(text: String)
 
@@ -32,6 +32,7 @@ func _ready() -> void:
 
 	_ray = RayCast3D.new()
 	_ray.target_position = Vector3(0, 0, -REACH)
+	_ray.collision_mask = 1 | Guest.COLLISION_LAYER
 	_camera.add_child(_ray)
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -86,6 +87,6 @@ func _update_looking_at() -> void:
 		return
 	_looking_at = target
 	var text := ""
-	if target is ElevatorButton:
+	if target is ElevatorButton or target is Guest:
 		text = target.display_name
 	looking_at_changed.emit(text)
