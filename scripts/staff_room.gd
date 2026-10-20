@@ -3,10 +3,12 @@ extends PanelContainer
 ## The staff room between shifts: the bank balance, every upgrade with its level and the
 ## price of the next one, and what it takes to move up to the next hotel. Buying pays from
 ## the balance straight away; the upgrade is in the cab from the next shift on. Moving up
-## pays the application fee, and the next shift is in the new hotel.
+## pays the application fee, and the next shift is in the new hotel. From the last hotel
+## you apply to the Grand Hotel instead, which ends the demo.
 
 signal bought(id: String)
 signal moved
+signal finished
 signal started
 
 var _career: Career
@@ -123,7 +125,9 @@ func _buy(id: String) -> void:
 
 
 func _move_up() -> void:
-	if _career.move_up():
+	if _career.can_finish_demo():
+		finished.emit()
+	elif _career.move_up():
 		moved.emit()
 	_refresh()
 
@@ -150,17 +154,21 @@ func _refresh() -> void:
 
 
 func _refresh_next_hotel() -> void:
-	_next_hotel.visible = not Hotels.is_last(_career.hotel)
-	if not _next_hotel.visible:
-		return
-	var next := Hotels.at(_career.hotel + 1)
+	var next := Hotels.next_after(_career.hotel)
 	_next_name.text = "Move up to %s (%d floors)" % [next.name, next.floors]
 	var rating := "%s: %.1f ★" % [
 		"Last %d shifts" % Career.AVERAGE_OVER if _career.ratings.size() >= Career.AVERAGE_OVER
 			else "%d of %d shifts so far" % [_career.ratings.size(), Career.AVERAGE_OVER],
 		_career.average_rating(),
 	]
-	_next_terms.text = "Needs %.0f ★ on average over your last %d shifts (%s)\nand an application fee of €%d. Your music box comes along; the cab starts over." % [
-		Hotels.UNLOCK_STARS, Career.AVERAGE_OVER, rating, next.fee]
+	var needs := "Needs %.0f ★ on average over your last %d shifts (%s)" % [
+		Hotels.UNLOCK_STARS, Career.AVERAGE_OVER, rating]
+	if Hotels.is_last(_career.hotel):
+		_next_terms.text = "%s.\nThis is as far as the demo goes." % needs
+		_apply.text = "Apply"
+		_apply.disabled = not _career.can_finish_demo()
+		return
+	_next_terms.text = "%s\nand an application fee of €%d. Your music box comes along; the cab starts over." % [
+		needs, next.fee]
 	_apply.text = "Apply €%d" % next.fee
 	_apply.disabled = not _career.can_move()

@@ -41,7 +41,8 @@ func _test_rules() -> void:
 	_check(c.level(Upgrades.CAB) == 0 and c.level(Upgrades.DOORS) == 0 and c.level(Upgrades.CALLS) == 0, "the cab, doors and call panel stay behind")
 	_check(c.next_price(Upgrades.MUSIC) == 2 * music_price, "upgrades cost twice the cabin's price (€%d)" % c.next_price(Upgrades.MUSIC))
 	c.ratings.assign([5.0, 5.0, 5.0])
-	_check(not c.can_move(), "Pension Bellevue is the last hotel for now")
+	_check(not c.can_move() and not c.move_up() and c.hotel == 1, "Pension Bellevue is the last hotel for now")
+	_check(c.can_finish_demo(), "from there the rating gets you to the end of the demo")
 
 
 func _test_apply() -> void:
@@ -70,7 +71,8 @@ func _test_apply() -> void:
 	apply.pressed.emit()
 	text = _text(room)
 	_check(text.contains("Staff room · Pension Bellevue") and text.contains("Bank balance: €20.00"), "after applying you're at Pension Bellevue with the fee paid")
-	_check(not room.find_child("MoveUp", true, false).is_visible_in_tree(), "and there's no further hotel to apply to yet")
+	_check(text.contains("Move up to Grand Hotel (12 floors)") and text.contains("as far as the demo goes"), "the next hotel is the Grand Hotel, where the demo ends")
+	_check((room.find_child("MoveUp", true, false) as Button).disabled, "with no shifts here yet you can't apply")
 	_check(text.contains("Music   level 1 of 3") and text.contains("Call panel   level 0 of 2"), "the music box came along, the call panel didn't")
 	var saved := Career.load_saved()
 	_check(saved.hotel == 1 and saved.balance == 20.0, "the move is saved straight away")

@@ -103,6 +103,12 @@ func has_unlock_rating() -> bool:
 	return ratings.size() >= AVERAGE_OVER and average_rating() >= Hotels.UNLOCK_STARS
 
 
+## True once you can apply to [constant Hotels.DEMO_END]: at the last hotel, with the
+## same rating it takes to move up anywhere else.
+func can_finish_demo() -> bool:
+	return Hotels.is_last(hotel) and has_unlock_rating()
+
+
 func can_move() -> bool:
 	return not Hotels.is_last(hotel) and has_unlock_rating() and balance >= Hotels.at(hotel + 1).fee
 

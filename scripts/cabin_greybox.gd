@@ -16,6 +16,7 @@ var _clock_label: Label
 var _stats_label: Label
 var _report: ShiftReport
 var _staff_room: StaffRoom
+var _end_screen: EndScreen
 var _replies: ReplyChoices
 var _hint_timer: SceneTreeTimer
 var _shift: Shift
@@ -206,7 +207,13 @@ func _build_hud() -> void:
 	_staff_room.bought.connect(_on_bought)
 	_staff_room.moved.connect(_save_career)
 	_staff_room.started.connect(_on_started)
+	_staff_room.finished.connect(_on_demo_finished)
 	hud.add_child(_staff_room)
+
+	_end_screen = EndScreen.new()
+	_end_screen.name = "EndScreen"
+	_end_screen.back.connect(_on_continued)
+	hud.add_child(_end_screen)
 
 
 func _on_looking_at_changed(text: String) -> void:
@@ -237,7 +244,13 @@ func _on_shift_ended() -> void:
 
 func _on_continued() -> void:
 	_report.hide()
+	_end_screen.hide()
 	_staff_room.show_for(_career)
+
+
+func _on_demo_finished() -> void:
+	_staff_room.hide()
+	_end_screen.show_for(_career)
 
 
 func _on_bought(_id: String) -> void:
