@@ -47,6 +47,7 @@ func _ready() -> void:
 	elevator.music_level = _career.level(Upgrades.MUSIC)
 	elevator.capacity = Upgrades.CAPACITY[_career.level(Upgrades.CAB)]
 	elevator.call_panel_level = _career.level(Upgrades.CALLS)
+	elevator.landing_z = SHAFT_FRONT + 0.05 # the landing walls' middle, see _build_landing
 	add_child(elevator)
 
 	var guests := GuestManager.new()

@@ -5,6 +5,9 @@ extends Node3D
 ## open or close. Floor presses queue up and stay lit; with the doors closed it rides to the
 ## next one. At a stop with more floors queued it waits until you press close again.
 ## The door buttons stay lit until the doors have done what was asked.
+## Every floor has landing doors in the hallway's opening, which open and close with the
+## cab's doors on the floor the cab is at and stay shut everywhere else, and a call button
+## beside them: from the hallway it brings the cab to you and opens up when it gets there.
 
 signal hint(text: String)
 
@@ -30,6 +33,8 @@ const DOOR_TIME := 0.8 ## seconds, with the standard doors
 ## called; 1 adds a lamp per floor that lights while someone waits there; 2 makes a lamp
 ## blink when a guest there runs out of patience. The calls are tracked either way.
 @export var call_panel_level := 0
+## z of the middle of the hallways' landing walls, where the landing doors slide.
+@export var landing_z := CAB_HALF_WIDTH + 0.15
 
 var current_floor := 0
 var doors_open := true
@@ -42,11 +47,14 @@ var _doors_moving_to := true
 var _door_tween: Tween
 var _queue: Array[int] = [] ## floors pressed and not reached yet, in the order they were pressed
 var _holding := false ## stopped on the way: waits for a close press before going on
+var _hall_calls: Array[int] = [] ## floors called from their hallway: the doors open on arrival
 var _buttons := {} ## action -> ElevatorButton
+var _call_buttons: Array[ElevatorButton] = [] ## per floor, in the hallway
 
 var _cab: AnimatableBody3D
 var _left_door: AnimatableBody3D
 var _right_door: AnimatableBody3D
+var _landing_doors: Array[Array] = [] ## per floor: [left, right]
 var _indicator: Label3D
 var _call_lamps: Array[MeshInstance3D] = []
 var _call_states: Array[CallLamp] = []
@@ -57,6 +65,7 @@ var _ding_player: AudioStreamPlayer
 func _ready() -> void:
 	_build_cab()
 	_build_doors()
+	_build_landings()
 	_build_panel()
 	_build_call_panel()
 	_build_fittings()
@@ -159,15 +168,47 @@ func _build_doors() -> void:
 	_right_door = _make_door("RightDoor")
 
 
-func _make_door(door_name: String) -> AnimatableBody3D:
+func _make_door(door_name: String, parent: Node3D = null) -> AnimatableBody3D:
 	var door := AnimatableBody3D.new()
 	door.name = door_name
 	# Synced to physics, a door's collision only follows its own moves, not the cab's: after
 	# a ride it stayed on the floor you left, and you walked through the shut doors.
 	door.sync_to_physics = false
-	_cab.add_child(door)
+	(parent if parent else _cab).add_child(door)
 	Greybox.box(door, Vector3(DOOR_OPENING / 2, DOOR_HEIGHT, 0.05), Vector3.ZERO, Color.WHITE, true, Interior.flat(Interior.STEEL, 0.6))
 	return door
+
+
+## Every floor's landing doors, in the opening of its landing wall (they slide into the
+## wall to open), and its call button on the hallway side, right of the opening.
+func _build_landings() -> void:
+	for f in floor_count:
+		var landing := Node3D.new()
+		landing.name = "Landing%d" % f
+		landing.position = Vector3(0, f * FLOOR_HEIGHT, 0)
+		add_child(landing)
+		_landing_doors.append([_make_door("LeftDoor", landing), _make_door("RightDoor", landing)])
+
+		var hall_face := landing_z + WALL / 2
+		var plate_at := Vector3(DOOR_OPENING / 2 + 0.3, 1.25, hall_face + 0.005)
+		Greybox.box(landing, Vector3(0.16, 0.22, 0.01), plate_at, Color.WHITE, false, Interior.flat(Interior.BRASS, 0.2))
+		var button := ElevatorButton.new()
+		button.name = "CallButton"
+		button.position = plate_at + Vector3(0, 0, 0.025)
+		button.rotation_degrees.y = -90.0 # its face (+X) towards the hallway (+Z)
+		landing.add_child(button)
+		button.setup("call %d" % f, "Call the elevator", "Call")
+		button.pressed.connect(_on_call_pressed.bind(f))
+		_call_buttons.append(button)
+
+
+## The landing doors and call button of floor [param f].
+func landing_doors(f: int) -> Array:
+	return _landing_doors[f]
+
+
+func call_button(f: int) -> ElevatorButton:
+	return _call_buttons[f]
 
 
 func _build_panel() -> void:
@@ -285,6 +326,26 @@ func _request_floor(target: int) -> void:
 	_update_button_lights()
 
 
+## A call button in floor [param f]'s hallway: you're out there, so the cab comes to you.
+## If it's already here it opens up; otherwise it shuts its doors wherever it is, stops
+## waiting for a close press, rides here and opens up on arrival.
+func _on_call_pressed(_button: ElevatorButton, f: int) -> void:
+	if f == current_floor and not _moving:
+		_request_doors(true)
+		return
+	if f not in _hall_calls:
+		_hall_calls.append(f)
+	if f not in _queue:
+		_queue.append(f)
+	_holding = false
+	_doors_target = false
+	_update_button_lights()
+
+
+func is_called_from_hall(f: int) -> bool:
+	return f in _hall_calls
+
+
 func _request_doors(open: bool) -> void:
 	if open and _moving:
 		hint.emit("Not while moving!")
@@ -327,6 +388,7 @@ func _update_button_lights() -> void:
 	_buttons["close"].set_lit(not _doors_target and not fully_closed)
 	for f in floor_count:
 		_buttons[str(f)].set_lit(f in _queue)
+		_call_buttons[f].set_lit(f in _hall_calls)
 
 
 func _move_to(target: int) -> void:
@@ -348,7 +410,12 @@ func _arrive(target: int) -> void:
 	current_floor = target
 	_moving = false
 	_queue.erase(target)
-	_holding = not _queue.is_empty()
+	var called := target in _hall_calls
+	_hall_calls.erase(target)
+	# Wait for a close press before going on, unless someone is waiting in a hallway.
+	_holding = not _queue.is_empty() and _hall_calls.is_empty()
+	if called:
+		_doors_target = true # whoever called is waiting outside
 	_update_button_lights()
 	if _holding:
 		hint.emit("Ding! Floor %d. Press close to go on to floor %d." % [target, _next_stop()])
@@ -356,15 +423,20 @@ func _arrive(target: int) -> void:
 		hint.emit("Ding! Floor %d." % target)
 
 
+## Opens or closes the cab's doors, and with them the landing doors of the floor it's at.
+## The other floors' landing doors stay shut.
 func _set_doors(open: bool, instant: bool) -> void:
 	var quarter := DOOR_OPENING / 4
 	var left_x := -DOOR_OPENING / 2 - quarter if open else -quarter
 	var right_x := DOOR_OPENING / 2 + quarter if open else quarter
-	var z := CAB_HALF_WIDTH - WALL
 	var y := DOOR_HEIGHT / 2
 	if instant:
-		_left_door.position = Vector3(left_x, y, z)
-		_right_door.position = Vector3(right_x, y, z)
+		_left_door.position = Vector3(left_x, y, CAB_HALF_WIDTH - WALL)
+		_right_door.position = Vector3(right_x, y, CAB_HALF_WIDTH - WALL)
+		for f in floor_count:
+			var here := f == current_floor
+			_landing_doors[f][0].position = Vector3(left_x if here else -quarter, y, landing_z)
+			_landing_doors[f][1].position = Vector3(right_x if here else quarter, y, landing_z)
 		doors_open = open
 		return
 
@@ -375,8 +447,11 @@ func _set_doors(open: bool, instant: bool) -> void:
 	# Reopening halfway takes only the time needed for the rest of the way.
 	var time := door_time * absf(_left_door.position.x - left_x) / (DOOR_OPENING / 2)
 	_door_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS).set_parallel()
-	_door_tween.tween_property(_left_door, "position:x", left_x, time)
-	_door_tween.tween_property(_right_door, "position:x", right_x, time)
+	var landing: Array = _landing_doors[current_floor]
+	for door: Node3D in [_left_door, landing[0]]:
+		_door_tween.tween_property(door, "position:x", left_x, time)
+	for door: Node3D in [_right_door, landing[1]]:
+		_door_tween.tween_property(door, "position:x", right_x, time)
 	_door_tween.chain().tween_callback(_doors_done.bind(open))
 
 
