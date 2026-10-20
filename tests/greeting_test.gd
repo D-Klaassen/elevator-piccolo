@@ -3,7 +3,7 @@ extends "res://tests/scene_test.gd"
 ## first click them, the HUD offers a friendly, neutral and rude reply, and your reply
 ## changes the tip (and a rude one may cost a complaint).
 ##
-## Run: godot --headless --path . --fixed-fps 60 --script tests/greeting_test.gd
+## Run: tests/run.sh greeting_test
 
 var _replies: ReplyChoices
 

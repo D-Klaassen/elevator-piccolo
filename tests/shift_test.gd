@@ -2,7 +2,7 @@ extends "res://tests/scene_test.gd"
 ## Headless scripted test of a shift: the clock, patience, pay and tips, the end-of-shift
 ## report and playing again, then a whole shift played by an autopilot through the buttons.
 ##
-## Run: godot --headless --path . --fixed-fps 60 --script tests/shift_test.gd
+## Run: tests/run.sh shift_test
 
 
 func _run() -> void:
