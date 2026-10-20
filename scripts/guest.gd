@@ -28,8 +28,7 @@ const HEIGHT := 1.35 ## the top of their head, at [constant MODEL_SCALE]
 ## Physics layer value for guests: the player's look ray sees them, the player's body walks through them.
 const COLLISION_LAYER := 2
 const BUBBLE_TIME := 6.0 ## seconds a speech bubble stays up
-const MOUTH_HEIGHT := 1.05 ## where a speech bubble comes out, at [constant MODEL_SCALE]
-const BUBBLE_SIDE := 40.0 ## pixels a speech bubble starts beside the mouth, so it doesn't cover the face
+const MOUTH_HEIGHT := 0.65 ## where a speech bubble comes out, at [constant MODEL_SCALE]
 
 const MODELS: Array[String] = [
 	"res://assets/kenney/mini-characters/character-female-a.glb",
@@ -146,8 +145,7 @@ var _skeleton: Skeleton3D
 var _loop := IDLE
 var _one_off := false
 var _marker: Label3D
-var _bubble: Label3D
-var _under: Label3D
+var _bubble: SpeechBubble
 var _bubble_timer: SceneTreeTimer
 var _speaking := false ## a bubble is up, whether or not you can see the guest right now
 
@@ -187,38 +185,16 @@ func setup(p_home_floor: int, p_destination: int, p_model: String, line_template
 	_marker.outline_size = 12
 	_marker.hide()
 
-	# Both come out of the mouth sideways, the line above it and what you understood below,
-	# and draw over the walls, so you see them at eye level wherever the guest stands.
-	_bubble = _speech_label("Bubble", 36, 10, VERTICAL_ALIGNMENT_BOTTOM)
-	_under = _speech_label("Understood", 26, 8, VERTICAL_ALIGNMENT_TOP)
-	_under.modulate = Color(1, 0.85, 0.4)
-	_bubble.hide()
-	_under.hide()
-
-
-func _speech_label(label_name: String, font_size: int, outline: int, valign: VerticalAlignment) -> Label3D:
-	var l := Greybox.label(self, "", Vector3(0, MOUTH_HEIGHT, 0), 0.0, font_size)
-	l.name = label_name
-	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	l.no_depth_test = true
-	l.render_priority = 1
-	l.outline_render_priority = 0
-	l.outline_size = outline
-	l.width = 400.0
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	l.vertical_alignment = valign
-	l.offset = Vector2(BUBBLE_SIDE + l.width / 2, 0)
-	return l
+	_bubble = SpeechBubble.new()
+	_bubble.position.y = MOUTH_HEIGHT
+	add_child(_bubble)
 
 
 func _process(_delta: float) -> void:
 	_marker.visible = is_impatient()
 	Gestures.keep_upright(_skeleton)
 	# The bubble draws over the walls, so hide it while a wall or a door is in between.
-	var in_view := _speaking and _in_view()
-	_bubble.visible = in_view
-	_under.visible = in_view and not _under.text.is_empty()
+	_bubble.visible = _speaking and _in_view()
 
 
 ## True when nothing solid is between the camera and their mouth.
@@ -251,11 +227,9 @@ func press() -> void:
 ## Shows [param text] in a speech bubble from their mouth, with [param under] (what you
 ## understood, and what they do) beneath it, for [constant BUBBLE_TIME] seconds.
 func say(text: String, under := "") -> void:
-	_bubble.text = text
-	_under.text = under
+	_bubble.set_lines(text, under)
 	_speaking = true
 	_bubble.visible = _in_view()
-	_under.visible = _bubble.visible and not under.is_empty()
 	_bubble_timer = get_tree().create_timer(BUBBLE_TIME, false)
 	# A connection, not an await: it goes away with the guest if they leave first.
 	_bubble_timer.timeout.connect(_hide_bubble.bind(_bubble_timer))
@@ -266,15 +240,14 @@ func _hide_bubble(timer: SceneTreeTimer) -> void:
 	if timer == _bubble_timer:
 		_speaking = false
 		_bubble.hide()
-		_under.hide()
 
 
 func bubble_text() -> String:
-	return _bubble.text if _speaking else ""
+	return _bubble.text() if _speaking else ""
 
 
 func under_text() -> String:
-	return _under.text if _speaking else ""
+	return _bubble.under_text() if _speaking else ""
 
 
 func reply_line(r: Reply) -> String:
