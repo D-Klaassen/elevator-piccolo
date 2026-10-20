@@ -1,14 +1,21 @@
 class_name StaffRoom
 extends PanelContainer
-## The staff room between shifts: the bank balance and every upgrade with its level and
-## the price of the next one. Buying pays from the balance straight away; the upgrade is
-## in the cab from the next shift on.
+## The staff room between shifts: the bank balance, every upgrade with its level and the
+## price of the next one, and what it takes to move up to the next hotel. Buying pays from
+## the balance straight away; the upgrade is in the cab from the next shift on. Moving up
+## pays the application fee, and the next shift is in the new hotel.
 
 signal bought(id: String)
+signal moved
 signal started
 
 var _career: Career
+var _title: Label
 var _balance: Label
+var _next_hotel: VBoxContainer
+var _next_name: Label
+var _next_terms: Label
+var _apply: Button
 var _rows := {} ## upgrade id -> {"level": Label, "next": Label, "buy": Button}
 var _start: Button
 
@@ -29,11 +36,10 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 12)
 	add_child(box)
 
-	var title := Label.new()
-	title.text = "Staff room"
-	title.add_theme_font_size_override("font_size", 32)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
+	_title = Label.new()
+	_title.add_theme_font_size_override("font_size", 32)
+	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_title)
 
 	_balance = Label.new()
 	_balance.add_theme_font_size_override("font_size", 20)
@@ -42,6 +48,9 @@ func _ready() -> void:
 
 	for upgrade in Upgrades.CATALOGUE:
 		box.add_child(_build_row(upgrade))
+
+	box.add_child(HSeparator.new())
+	box.add_child(_build_next_hotel())
 
 	_start = Button.new()
 	_start.name = "StartShift"
@@ -75,6 +84,31 @@ func _build_row(upgrade: Dictionary) -> Control:
 	return row
 
 
+## The next hotel: its name, what it takes to get in, and the button to apply.
+func _build_next_hotel() -> Control:
+	_next_hotel = VBoxContainer.new()
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	_next_hotel.add_child(row)
+
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(text)
+	_next_name = Label.new()
+	_next_name.add_theme_font_size_override("font_size", 20)
+	text.add_child(_next_name)
+	_next_terms = Label.new()
+	_next_terms.modulate = Color(1, 1, 1, 0.7)
+	text.add_child(_next_terms)
+
+	_apply = Button.new()
+	_apply.name = "MoveUp"
+	_apply.custom_minimum_size = Vector2(110, 0)
+	_apply.pressed.connect(_move_up)
+	row.add_child(_apply)
+	return _next_hotel
+
+
 func show_for(career: Career) -> void:
 	_career = career
 	_refresh()
@@ -88,7 +122,15 @@ func _buy(id: String) -> void:
 	_refresh()
 
 
+func _move_up() -> void:
+	if _career.move_up():
+		moved.emit()
+	_refresh()
+
+
 func _refresh() -> void:
+	_title.text = "Staff room · %s" % _career.hotel_info().name
+	_refresh_next_hotel()
 	_balance.text = "Bank balance: €%.2f" % _career.balance
 	for upgrade in Upgrades.CATALOGUE:
 		var row: Dictionary = _rows[upgrade.id]
@@ -104,3 +146,20 @@ func _refresh() -> void:
 			row.next.text = "Next: %s" % upgrade.effects[l]
 			buy.text = "Buy €%d" % _career.next_price(upgrade.id)
 			buy.disabled = not _career.can_buy(upgrade.id)
+
+
+func _refresh_next_hotel() -> void:
+	_next_hotel.visible = not Hotels.is_last(_career.hotel)
+	if not _next_hotel.visible:
+		return
+	var next := Hotels.at(_career.hotel + 1)
+	_next_name.text = "Move up to %s (%d floors)" % [next.name, next.floors]
+	var rating := "%s: %.1f ★" % [
+		"Last %d shifts" % Career.AVERAGE_OVER if _career.ratings.size() >= Career.AVERAGE_OVER
+			else "%d of %d shifts so far" % [_career.ratings.size(), Career.AVERAGE_OVER],
+		_career.average_rating(),
+	]
+	_next_terms.text = "Needs %.0f ★ on average over your last %d shifts (%s)\nand an application fee of €%d. Your music box comes along; the cab starts over." % [
+		Hotels.UNLOCK_STARS, Career.AVERAGE_OVER, rating, next.fee]
+	_apply.text = "Apply €%d" % next.fee
+	_apply.disabled = not _career.can_move()

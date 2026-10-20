@@ -98,9 +98,10 @@ func _ride_to(f: int, report := true) -> void:
 	var clear := await _wait_until(func() -> bool: return _elevator.door_blockers == 0 and not _elevator._moving)
 	if report or not clear:
 		_check(clear, "doorway clear before leaving")
+	var ride_time := absi(f - _elevator.current_floor) * Elevator.FLOOR_HEIGHT / Elevator.SPEED
 	_press(str(f))
 	_press("close")
-	var arrived := await _wait_until(func() -> bool: return _elevator.current_floor == f and not _elevator._moving)
+	var arrived := await _wait_until(func() -> bool: return _elevator.current_floor == f and not _elevator._moving, ride_time + 10)
 	_press("open")
 	var opened := await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
 	if report or not (arrived and opened):

@@ -1,7 +1,7 @@
 class_name Career
 extends RefCounted
-## What carries over from one shift to the next: the bank balance, the star rating of
-## every finished shift and the upgrades bought in the staff room. Saved to disk at the end of every shift and loaded when a shift
+## What carries over from one shift to the next: the bank balance, the hotel you work in,
+## the star rating of every finished shift there and the upgrades bought in the staff room. Saved to disk at the end of every shift and loaded when a shift
 ## starts, so it survives both playing on and quitting the game.
 
 const DEFAULT_PATH := "user://career.cfg"
@@ -12,9 +12,11 @@ const AVERAGE_OVER := 3 ## the hotel unlock looks at the average of this many re
 static var save_path := DEFAULT_PATH
 
 var balance := 0.0
-## The star rating of every finished shift, oldest first, fired or not.
+## Where you work: an index into [constant Hotels.LADDER].
+var hotel := 0
+## The star rating of every finished shift in this hotel, oldest first, fired or not.
 var ratings: Array[float] = []
-## Shifts finished without being fired; a shift you got fired from is tried again.
+## Shifts in this hotel finished without being fired; a shift you got fired from is tried again.
 var shifts_done := 0
 ## The level of every upgrade bought, by [Upgrades] id. Missing means level 0.
 var upgrades := {}
@@ -27,6 +29,7 @@ static func load_saved() -> Career:
 	if file.load(save_path) != OK:
 		return career
 	career.balance = file.get_value("career", "balance", 0.0)
+	career.hotel = file.get_value("career", "hotel", 0)
 	career.ratings.assign(file.get_value("career", "ratings", []))
 	career.shifts_done = file.get_value("career", "shifts_done", 0)
 	career.upgrades = file.get_value("career", "upgrades", {})
@@ -36,6 +39,7 @@ static func load_saved() -> Career:
 func save() -> Error:
 	var file := ConfigFile.new()
 	file.set_value("career", "balance", balance)
+	file.set_value("career", "hotel", hotel)
 	file.set_value("career", "ratings", ratings)
 	file.set_value("career", "shifts_done", shifts_done)
 	file.set_value("career", "upgrades", upgrades)
@@ -71,7 +75,7 @@ func next_price(id: String) -> float:
 	var l := level(id)
 	if l >= Upgrades.max_level(id):
 		return -1.0
-	return Upgrades.find(id).prices[l]
+	return Upgrades.find(id).prices[l] * Hotels.at(hotel).prices
 
 
 func can_buy(id: String) -> bool:
@@ -86,4 +90,33 @@ func buy(id: String) -> bool:
 		return false
 	balance -= next_price(id)
 	upgrades[id] = level(id) + 1
+	return true
+
+
+func hotel_info() -> Dictionary:
+	return Hotels.at(hotel)
+
+
+## True once the last [constant AVERAGE_OVER] shifts here average enough stars to apply
+## at the next hotel. Fewer shifts than that are not enough.
+func has_unlock_rating() -> bool:
+	return ratings.size() >= AVERAGE_OVER and average_rating() >= Hotels.UNLOCK_STARS
+
+
+func can_move() -> bool:
+	return not Hotels.is_last(hotel) and has_unlock_rating() and balance >= Hotels.at(hotel + 1).fee
+
+
+## Pays the next hotel's application fee and moves there: its ratings and shift count start
+## afresh, the music box comes along and the cab's hardware stays behind. Returns false,
+## and changes nothing, when you can't move yet.
+func move_up() -> bool:
+	if not can_move():
+		return false
+	hotel += 1
+	balance -= hotel_info().fee
+	ratings.clear()
+	shifts_done = 0
+	for id in Hotels.HARDWARE:
+		upgrades.erase(id)
 	return true
