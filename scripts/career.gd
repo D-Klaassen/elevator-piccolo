@@ -1,7 +1,7 @@
 class_name Career
 extends RefCounted
-## What carries over from one shift to the next: the bank balance and the star rating of
-## every finished shift. Saved to disk at the end of every shift and loaded when a shift
+## What carries over from one shift to the next: the bank balance, the star rating of
+## every finished shift and the upgrades bought in the staff room. Saved to disk at the end of every shift and loaded when a shift
 ## starts, so it survives both playing on and quitting the game.
 
 const DEFAULT_PATH := "user://career.cfg"
@@ -16,6 +16,8 @@ var balance := 0.0
 var ratings: Array[float] = []
 ## Shifts finished without being fired; a shift you got fired from is tried again.
 var shifts_done := 0
+## The level of every upgrade bought, by [Upgrades] id. Missing means level 0.
+var upgrades := {}
 
 
 ## The saved career, or a fresh one if there is no save yet.
@@ -27,6 +29,7 @@ static func load_saved() -> Career:
 	career.balance = file.get_value("career", "balance", 0.0)
 	career.ratings.assign(file.get_value("career", "ratings", []))
 	career.shifts_done = file.get_value("career", "shifts_done", 0)
+	career.upgrades = file.get_value("career", "upgrades", {})
 	return career
 
 
@@ -35,6 +38,7 @@ func save() -> Error:
 	file.set_value("career", "balance", balance)
 	file.set_value("career", "ratings", ratings)
 	file.set_value("career", "shifts_done", shifts_done)
+	file.set_value("career", "upgrades", upgrades)
 	return file.save(save_path)
 
 
@@ -56,3 +60,30 @@ func average_rating(count := AVERAGE_OVER) -> float:
 	for r in recent:
 		total += r
 	return total / recent.size()
+
+
+func level(id: String) -> int:
+	return upgrades.get(id, 0)
+
+
+## What the next level of [param id] costs, or -1 when it is at the top level.
+func next_price(id: String) -> float:
+	var l := level(id)
+	if l >= Upgrades.max_level(id):
+		return -1.0
+	return Upgrades.find(id).prices[l]
+
+
+func can_buy(id: String) -> bool:
+	var price := next_price(id)
+	return price >= 0.0 and balance >= price
+
+
+## Pays for the next level of [param id]. Returns false, and changes nothing, when it is
+## at the top level or the balance is too low.
+func buy(id: String) -> bool:
+	if not can_buy(id):
+		return false
+	balance -= next_price(id)
+	upgrades[id] = level(id) + 1
+	return true

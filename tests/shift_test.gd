@@ -116,20 +116,23 @@ func _test_end_and_play_again() -> void:
 	_check(paused, "the game pauses behind the report")
 	_check(_shift.wage == Shift.WAGE and _shift.money() == before + Shift.WAGE, "the base wage is paid at the end")
 	var text := _all_text(report)
-	_check(text.contains("Shift 1 over") and text.contains("Guests served: 2") and text.contains("took the stairs: 2") and text.contains("your replies: 0") and text.contains("4.0 ★"), "the report sums up the day")
+	_check(text.contains("Shift 1 over") and text.contains("Guests served: 2") and text.contains("took the stairs: 2") and not text.contains("replies") and text.contains("4.0 ★"), "the report sums up the day")
 	_check(not _shift.is_fired(), "4 stars keeps the job")
 	_shift.stars = 1.5
 	_check(_shift.is_fired(), "below 2 stars you're fired")
 
 	var old_id := _scene.get_instance_id() # an id, because the old scene gets freed
 	(report.find_child("Continue", true, false) as Button).pressed.emit()
-	_check(await _wait_until(func() -> bool: return current_scene != null and current_scene.get_instance_id() != old_id and current_scene.is_node_ready()), "play again reloads the scene")
+	var staff_room: StaffRoom = _scene.find_child("StaffRoom", true, false)
+	_check(staff_room.visible, "play again goes through the staff room")
+	(staff_room.find_child("StartShift", true, false) as Button).pressed.emit()
+	_check(await _wait_until(func() -> bool: return current_scene != null and current_scene.get_instance_id() != old_id and current_scene.is_node_ready()), "starting the shift reloads the scene")
 	_load_scene(current_scene)
 	_check(not paused and int(_shift.minutes) == Shift.START and _shift.money() == 0 and _shift.stars == Shift.START_STARS, "a fresh shift starts at 08:00 with €0 and 5 stars")
 
 
 func _test_full_shift() -> void:
-	# The autopilot answers calls and delivers riders, nearest floor first,. Chats are off by
+	# The autopilot answers calls and delivers riders, nearest floor first. Chats are off by
 	# default, so nobody should chat.
 	_shift.spawning = true
 	var temperaments := {}

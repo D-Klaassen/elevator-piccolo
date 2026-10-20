@@ -48,7 +48,6 @@ func show_for(shift: Shift, career: Career) -> void:
 	_lines.text = "\n".join([
 		"Guests served: %d" % shift.served,
 		"Guests who took the stairs: %d" % shift.lost,
-		"Complaints about your replies: %d" % shift.reply_complaints,
 		"",
 		"Fares: €%.2f" % shift.fares,
 		"Tips: €%.2f" % shift.tips,
