@@ -117,6 +117,16 @@ func _process(_delta: float) -> void:
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if visible else SubViewport.UPDATE_DISABLED
 	if visible:
 		_fit()
+		_put_nearest_on_top()
+
+
+## Bubbles draw over everything, so their order isn't by depth: a nearer one gets a higher
+## render priority, in steps of 10 cm, so it covers a farther one.
+func _put_nearest_on_top() -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera:
+		var distance := camera.global_position.distance_to(global_position)
+		render_priority = clampi(127 - int(distance * 10), RenderingServer.MATERIAL_RENDER_PRIORITY_MIN, 127)
 
 
 ## Sizes the box, the tail and the texture to the text. A wrapped label only knows its
