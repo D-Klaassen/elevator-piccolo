@@ -139,6 +139,7 @@ func _on_delivered(guest: Guest) -> void:
 	tips += tip
 	stats_changed.emit()
 	guest.say("Thanks!")
+	guest.act(Guest.NOD)
 	announced.emit("+€%d fare, +€%d tip" % [fare(), tip])
 
 
@@ -146,6 +147,7 @@ func _on_gave_up(guest: Guest) -> void:
 	lost += 1
 	stars = maxf(stars - COMPLAINT, 0.0)
 	stats_changed.emit()
+	guest.act(Guest.HEAD_SHAKE)
 	if guest.fed_up:
 		guest.say("That's it, I'm getting out at the next stop!")
 		announced.emit("A guest wants out at the next stop.   Complaint: -%.1f star" % COMPLAINT)
@@ -161,6 +163,7 @@ func _on_replied(guest: Guest) -> void:
 	stars = maxf(stars - COMPLAINT, 0.0)
 	stats_changed.emit()
 	guest.say("I'll be mentioning this to the manager.")
+	guest.act(Guest.HEAD_SHAKE)
 	announced.emit("An unhappy guest.   Complaint: -%.1f star" % COMPLAINT)
 
 
