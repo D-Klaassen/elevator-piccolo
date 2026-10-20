@@ -122,21 +122,26 @@ func _build_cab() -> void:
 	_cab.name = "Cab"
 	add_child(_cab)
 
-	var wall_color := Color(0.55, 0.42, 0.3)
+	var walls := Interior.material(Interior.CAB_WALL, true)
 	var w := CAB_HALF_WIDTH
 	var h := CAB_HEIGHT
 	# Floor and ceiling.
-	Greybox.box(_cab, Vector3(2 * w + WALL, WALL, 2 * w + WALL), Vector3(0, -WALL / 2, 0), Color(0.3, 0.22, 0.15))
-	Greybox.box(_cab, Vector3(2 * w + WALL, WALL, 2 * w + WALL), Vector3(0, h + WALL / 2, 0), Color(0.8, 0.78, 0.7))
+	Greybox.box(_cab, Vector3(2 * w + WALL, WALL, 2 * w + WALL), Vector3(0, -WALL / 2, 0), Color.WHITE, true, Interior.material(Interior.CAB_FLOOR, true))
+	Greybox.box(_cab, Vector3(2 * w + WALL, WALL, 2 * w + WALL), Vector3(0, h + WALL / 2, 0), Color.WHITE, true, Interior.material(Interior.CAB_CEILING, true))
 	# Back and side walls.
-	Greybox.box(_cab, Vector3(2 * w, h, WALL), Vector3(0, h / 2, -w), wall_color)
-	Greybox.box(_cab, Vector3(WALL, h, 2 * w), Vector3(-w, h / 2, 0), wall_color)
-	Greybox.box(_cab, Vector3(WALL, h, 2 * w), Vector3(w, h / 2, 0), wall_color)
+	Greybox.box(_cab, Vector3(2 * w, h, WALL), Vector3(0, h / 2, -w), Color.WHITE, true, walls)
+	Greybox.box(_cab, Vector3(WALL, h, 2 * w), Vector3(-w, h / 2, 0), Color.WHITE, true, walls)
+	Greybox.box(_cab, Vector3(WALL, h, 2 * w), Vector3(w, h / 2, 0), Color.WHITE, true, walls)
 	# Front wall with a door opening in the middle.
 	var side := w - DOOR_OPENING / 2
-	Greybox.box(_cab, Vector3(side, h, WALL), Vector3(-(DOOR_OPENING / 2 + side / 2), h / 2, w), wall_color)
-	Greybox.box(_cab, Vector3(side, h, WALL), Vector3(DOOR_OPENING / 2 + side / 2, h / 2, w), wall_color)
-	Greybox.box(_cab, Vector3(DOOR_OPENING, h - DOOR_HEIGHT, WALL), Vector3(0, (h + DOOR_HEIGHT) / 2, w), wall_color)
+	Greybox.box(_cab, Vector3(side, h, WALL), Vector3(-(DOOR_OPENING / 2 + side / 2), h / 2, w), Color.WHITE, true, walls)
+	Greybox.box(_cab, Vector3(side, h, WALL), Vector3(DOOR_OPENING / 2 + side / 2, h / 2, w), Color.WHITE, true, walls)
+	Greybox.box(_cab, Vector3(DOOR_OPENING, h - DOOR_HEIGHT, WALL), Vector3(0, (h + DOOR_HEIGHT) / 2, w), Color.WHITE, true, walls)
+	# Handrail, ceiling light and skirting: looks only, no collision.
+	var trim := Node3D.new()
+	trim.name = "Trim"
+	_cab.add_child(trim)
+	Interior.trim_cab(trim, w, h, WALL)
 
 	var light := OmniLight3D.new()
 	light.position = Vector3(0, h - 0.3, 0)
@@ -161,7 +166,7 @@ func _make_door(door_name: String) -> AnimatableBody3D:
 	# a ride it stayed on the floor you left, and you walked through the shut doors.
 	door.sync_to_physics = false
 	_cab.add_child(door)
-	Greybox.box(door, Vector3(DOOR_OPENING / 2, DOOR_HEIGHT, 0.05), Vector3.ZERO, Color(0.7, 0.7, 0.75))
+	Greybox.box(door, Vector3(DOOR_OPENING / 2, DOOR_HEIGHT, 0.05), Vector3.ZERO, Color.WHITE, true, Interior.flat(Interior.STEEL, 0.6))
 	return door
 
 
