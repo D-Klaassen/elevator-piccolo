@@ -24,6 +24,7 @@ A game design + tech spec for a playable **vertical slice**: engine chosen, firs
 - [How does guessing a guest's floor in an unknown language feel?](tickets/03-language-guessing.md): real misheard Spanish, hard indirect hints, 5 lessons that each help a little, known-word translations under the text
 - [Which upgrades exist and what do they cost?](tickets/06-upgrades.md): minimum wage + fares/tips (~€80–180 per shift), 6 upgrade lines incl. music that starts silent, staff-room shop, languages and music carry over between hotels
 - [What changes when you move to a bigger hotel?](tickets/07-hotel-progression.md): rustic cabin (3 floors) → 4 hotels up to 30 floors, each adding a language and a twist; unlock = 4★ + fee; no going back; bring your own music box
+- [What exactly is in the vertical slice?](tickets/05-slice-scope.md): cabin + Pension Bellevue, 4 upgrade lines, 45–60 min, asset packs, save/settings/controller, success = friends want one more shift
 
 ## Not yet specified
 
