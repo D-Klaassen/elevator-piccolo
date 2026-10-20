@@ -81,3 +81,19 @@ tools/build.sh Linux
 ```
 
 To try the Linux build on a Steam Deck, copy the file over (for example to `~/Games/`), mark it executable, and add it in Desktop Mode with **Add a Non-Steam Game to My Library** to play it in Game Mode with the controller. Code signing for macOS (an Apple Developer account) and Steam builds come later.
+
+## Performance
+
+The spec asks for 60 fps on the Steam Deck. Start the game with `--benchmark` to measure it: it loads Pension Bellevue (the biggest hotel) with a temporary career, so nothing of yours is touched, fills it with guests, gets them all talking, and measures four views for a few seconds each with vsync off. It prints frames per second, CPU and GPU time per frame and draw calls, then quits. On this machine:
+
+```bash
+tools/benchmark.sh
+```
+
+On the Deck, in Desktop Mode, from a terminal in the folder with the Linux build:
+
+```bash
+./ElevatorPiccolo.x86_64 -- --benchmark
+```
+
+A frame at 60 fps has 16.7 ms. On an Apple M4 Pro the busiest view takes about 1 ms of GPU time and 0.25 ms of CPU time to draw, with 100–170 draw calls, and the game's scripts about 0.2 ms; the Deck's GPU is roughly 5–6 times slower, which leaves plenty of room. Metal reports no GPU time, so `tools/benchmark.sh` uses Vulkan. The benchmark lives in `scripts/benchmark.gd`. For the real check, play a shift in Game Mode with the Deck's performance overlay on.
