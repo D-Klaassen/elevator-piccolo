@@ -11,6 +11,7 @@ func _run() -> void:
 	await _test_clock()
 	await _test_patience()
 	await _test_pay()
+	await _test_ride_patience()
 	await _test_end_and_play_again()
 	await _test_full_shift()
 
@@ -27,9 +28,12 @@ func _test_rules() -> void:
 	var other_rate := (times.size() - lunch) / float(Shift.END - Shift.START - (Shift.LUNCH_END - Shift.LUNCH_START))
 	_check(lunch >= Shift.LUNCH_GUESTS and lunch_rate > 2 * other_rate, "a lunch rush (%d guests in 12:00-13:30)" % lunch)
 
-	_check(Shift.tip_for_wait(0) == 6 and Shift.tip_for_wait(Shift.FULL_TIP_WAIT) == 6, "a quick pick-up earns the full €6 tip")
-	_check(Shift.tip_for_wait(35) == 3, "a 35 s wait earns half the tip")
-	_check(Shift.tip_for_wait(Shift.NO_TIP_WAIT) == 0 and Shift.tip_for_wait(100) == 0, "a long wait earns no tip")
+	_check(Shift.tip_for_wait(0, 45) == 6 and Shift.tip_for_wait(9, 45) == 6, "a quick pick-up earns the full €6 tip")
+	_check(Shift.tip_for_wait(27, 45) == 3, "27 s of a 45 s patience earns half the tip")
+	_check(Shift.tip_for_wait(45, 45) == 0, "a guest at the end of their patience tips nothing")
+	_check(Shift.tip_for_wait(20, 30) < Shift.tip_for_wait(20, 60), "the same wait earns less from a hasty guest")
+	var waits := Guest.TEMPERAMENTS.map(func(t: Dictionary) -> float: return t.wait)
+	_check(waits.min() < waits.max(), "some guests are more patient than others (%s)" % [waits])
 	_check(Shift.format_clock(8 * 60 + 5) == "08:05", "the clock reads 08:05")
 
 
@@ -42,11 +46,13 @@ func _test_clock() -> void:
 func _test_patience() -> void:
 	# A guest on floor 2 while the cab stays on floor 0.
 	var p := _guests.spawn_guest(2, 0)
-	await _wait_seconds(Guest.IMPATIENT_AFTER - 1)
-	_check(_elevator.call_state(2) == Elevator.CallLamp.ON, "the call lamp is steady at first")
+	p.patience = 45
+	await _wait_seconds(p.patience * Guest.IMPATIENT_SHARE - 1)
+	_check(_elevator.call_state(2) == Elevator.CallLamp.ON and not p.is_impatient(), "the call lamp is steady at first")
 	await _wait_seconds(2)
 	_check(_elevator.call_state(2) == Elevator.CallLamp.BLINKING, "the call lamp blinks once the guest gets impatient")
-	_check(await _wait_until(func() -> bool: return p.state == Guest.State.LEAVING, Guest.PATIENCE), "the guest gives up after %d s" % Guest.PATIENCE)
+	_check(p._marker.visible, "a red ! shows above the impatient guest")
+	_check(await _wait_until(func() -> bool: return p.state == Guest.State.LEAVING, p.patience), "the guest gives up after %d s" % p.patience)
 	_check(_elevator.call_state(2) == Elevator.CallLamp.OFF, "the call lamp goes out when they leave")
 	_check(_last_said.contains("stairs"), "they say they'll take the stairs (%s)" % _last_said)
 	_check(_shift.lost == 1 and _shift.stars == Shift.START_STARS - Shift.COMPLAINT, "a complaint costs half a star")
@@ -57,6 +63,8 @@ func _test_patience() -> void:
 func _test_pay() -> void:
 	# Quick service: boards straight away on floor 0, out on floor 1.
 	var q := _guests.spawn_guest(0, 1)
+	q.patience = 45
+	q.ride_patience = 60
 	await _wait_until(func() -> bool: return q.state == Guest.State.RIDING)
 	await _ride_to(1)
 	_check(await _wait_until(_gone(q)), "quick guest delivered")
@@ -65,15 +73,32 @@ func _test_pay() -> void:
 
 	# Slow service: the cab only comes back for them after 30 s.
 	var r := _guests.spawn_guest(0, 1)
+	r.patience = 60
+	r.ride_patience = 60
 	await _wait_seconds(30)
 	await _ride_to(0)
 	await _wait_until(func() -> bool: return r.state == Guest.State.RIDING)
-	var expected := Shift.tip_for_wait(r.waited)
+	var expected := Shift.tip_for_wait(r.waited, r.patience)
 	await _ride_to(1)
 	_check(await _wait_until(_gone(r)), "slow guest delivered")
 	var tip := _shift.tips - Shift.MAX_TIP
 	_check(tip == expected and tip > 0 and tip < Shift.MAX_TIP, "a slow pick-up earns a smaller tip (€%.2f)" % tip)
 	_check(_shift.served == 2, "two guests served")
+
+
+func _test_ride_patience() -> void:
+	# A guest boards on floor 1 for floor 0, but the cab heads up to floor 2 instead.
+	var f := _guests.spawn_guest(1, 0)
+	f.patience = 60
+	f.ride_patience = 4
+	await _wait_until(func() -> bool: return f.state == Guest.State.RIDING)
+	var lost := _shift.lost
+	var money := _shift.money()
+	await _ride_to(2)
+	_check(f.fed_up and _shift.lost == lost + 1, "a guest who rides too long complains")
+	_check(_last_said.contains("next stop"), "they want out at the next stop (%s)" % _last_said)
+	_check(await _wait_until(_gone(f)), "they get out on floor 2, not their floor, and disappear")
+	_check(_shift.money() == money and _shift.served == 2, "a fed-up rider pays nothing")
 
 
 func _test_end_and_play_again() -> void:
@@ -85,8 +110,8 @@ func _test_end_and_play_again() -> void:
 	_check(paused, "the game pauses behind the report")
 	_check(_shift.wage == Shift.WAGE and _shift.money() == before + Shift.WAGE, "the base wage is paid at the end")
 	var text := _all_text(report)
-	_check(text.contains("Shift over") and text.contains("Guests served: 2") and text.contains("4.5 ★"), "the report sums up the day")
-	_check(not _shift.is_fired(), "4.5 stars keeps the job")
+	_check(text.contains("Shift over") and text.contains("Guests served: 2") and text.contains("took the stairs: 2") and text.contains("4.0 ★"), "the report sums up the day")
+	_check(not _shift.is_fired(), "4 stars keeps the job")
 	_shift.stars = 1.5
 	_check(_shift.is_fired(), "below 2 stars you're fired")
 
@@ -100,6 +125,10 @@ func _test_end_and_play_again() -> void:
 func _test_full_shift() -> void:
 	# The autopilot answers calls and delivers riders, nearest floor first.
 	_shift.spawning = true
+	var temperaments := {}
+	_guests.child_entered_tree.connect(func(node: Node) -> void:
+		if node is Guest:
+			temperaments[node.temperament] = true)
 	var rides := 0
 	while not _shift.is_over:
 		var target := _next_floor()
@@ -114,7 +143,8 @@ func _test_full_shift() -> void:
 	_check(_shift.is_over, "a whole shift can be played to the end")
 	_check(_shift.spawned == Shift.GUESTS, "all %d guests turned up (%d)" % [Shift.GUESTS, _shift.spawned])
 	_check(_shift.served + _shift.lost == _shift.spawned, "every guest was served or gave up (%d + %d)" % [_shift.served, _shift.lost])
-	_check(_shift.served >= Shift.GUESTS - 3, "the autopilot serves most guests (%d)" % _shift.served)
+	_check(_shift.served >= Shift.GUESTS / 2, "the autopilot serves most guests (%d)" % _shift.served)
+	_check(temperaments.size() >= 2, "guests come with different temperaments (%s)" % [temperaments.keys()])
 	_check(is_equal_approx(_shift.money(), _shift.fares + _shift.tips + Shift.WAGE), "money adds up: €%.2f" % _shift.money())
 	_check(_shift.stars == Shift.START_STARS - Shift.COMPLAINT * _shift.lost, "stars: %.1f" % _shift.stars)
 	_check((_scene.find_child("ShiftReport", true, false) as ShiftReport).visible, "the report shows after a full shift")

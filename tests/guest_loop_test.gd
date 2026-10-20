@@ -7,6 +7,7 @@ extends "res://tests/scene_test.gd"
 
 func _run() -> void:
 	_shift.spawning = false
+	_guests.patience_scale = 10.0 # nobody gives up during this test
 
 	# Guest A on floor 0 (the cab is here, doors open) going to floor 1.
 	var a := _guests.spawn_guest(0, 1)

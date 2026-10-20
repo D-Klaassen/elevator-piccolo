@@ -1,15 +1,21 @@
 class_name Guest
 extends StaticBody3D
 ## A capsule placeholder guest. Waits in the hallway, rides the cab and walks out on
-## their floor. Look at them and click to hear which floor they want.
+## their floor. Look at them and click to hear which floor they want. A red "!" above
+## their head means they're running out of patience.
 
 signal spoke(text: String)
 
 enum State { ARRIVING, WAITING, BOARDING, RIDING, LEAVING }
 
 const WALK_SPEED := 1.2 ## metres per second
-const PATIENCE := 75.0 ## seconds a guest waits for the cab before taking the stairs
-const IMPATIENT_AFTER := 50.0 ## seconds of waiting before their call lamp starts blinking
+## How long each kind of guest waits for the cab, and puts up with the ride, in seconds.
+const TEMPERAMENTS: Array[Dictionary] = [
+	{"name": "hasty", "wait": 30.0, "ride": 18.0},
+	{"name": "normal", "wait": 45.0, "ride": 25.0},
+	{"name": "patient", "wait": 60.0, "ride": 35.0},
+]
+const IMPATIENT_SHARE := 2.0 / 3.0 ## share of their patience after which a guest shows it
 const RADIUS := 0.25
 const HEIGHT := 1.7
 ## Physics layer value for guests: the player's look ray sees them, the player's body walks through them.
@@ -31,9 +37,15 @@ var state := State.ARRIVING
 var wait_spot := -1 ## index of the hallway spot while arriving or waiting
 var cab_slot := -1 ## index of the spot in the cab while boarding or riding
 var line := ""
+var temperament := "normal"
+var patience := 45.0 ## seconds they wait for the cab before taking the stairs
+var ride_patience := 25.0 ## seconds they ride before they want out at the next stop
 var waited := 0.0 ## seconds since they called; stops counting once they board
+var rode := 0.0 ## seconds since they started boarding
+var fed_up := false ## ran out of ride patience: gets out at the next open doors without paying
 
 var _tween: Tween
+var _marker: Label3D
 
 
 func setup(p_home_floor: int, p_destination: int, color: Color, line_template: String) -> void:
@@ -63,9 +75,24 @@ func setup(p_home_floor: int, p_destination: int, color: Color, line_template: S
 	shape.position.y = HEIGHT / 2
 	add_child(shape)
 
+	_marker = Greybox.label(self, "!", Vector3(0, HEIGHT + 0.25, 0), 0.0, 96)
+	_marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_marker.modulate = Color(1, 0.2, 0.1)
+	_marker.outline_size = 12
+	_marker.hide()
+
+
+func _process(_delta: float) -> void:
+	_marker.visible = is_impatient()
+
 
 func is_impatient() -> bool:
-	return waited >= IMPATIENT_AFTER
+	match state:
+		State.ARRIVING, State.WAITING:
+			return waited >= patience * IMPATIENT_SHARE
+		State.BOARDING, State.RIDING:
+			return fed_up or rode >= ride_patience * IMPATIENT_SHARE
+	return false
 
 
 func press() -> void:

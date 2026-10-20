@@ -17,6 +17,9 @@ const LANDING_Z := 1.8 ## just in front of the landing opening
 const CAB_DOOR_Z := 0.5 ## just inside the cab doors
 const HALL_END_Z := 4.4 ## where guests come from and go to
 
+## Multiplies every guest's patience. Upgrades (music and the like) will raise it.
+@export var patience_scale := 1.0
+
 var elevator: Elevator
 var rng := RandomNumberGenerator.new()
 
@@ -27,8 +30,13 @@ func _process(delta: float) -> void:
 	for guest in _guests.duplicate():
 		if _is_calling(guest):
 			guest.waited += delta
-			if guest.waited >= Guest.PATIENCE:
+			if guest.waited >= guest.patience:
 				_give_up(guest)
+		elif _is_aboard(guest) and not guest.fed_up:
+			guest.rode += delta
+			if guest.rode >= guest.ride_patience:
+				guest.fed_up = true # they get out at the next open doors
+				gave_up.emit(guest)
 	_update_calls()
 
 	if elevator.is_open_at_rest():
@@ -61,6 +69,10 @@ func spawn_guest(home: int, destination: int) -> Guest:
 		return null
 	var guest := Guest.new()
 	guest.setup(home, destination, Color.from_hsv(rng.randf(), 0.45, 0.85), Guest.LINES.pick_random())
+	var temperament: Dictionary = Guest.TEMPERAMENTS[rng.randi_range(0, Guest.TEMPERAMENTS.size() - 1)]
+	guest.temperament = temperament.name
+	guest.patience = temperament.wait * patience_scale
+	guest.ride_patience = temperament.ride * patience_scale
 	guest.wait_spot = spot
 	add_child(guest)
 	var y := _floor_y(home)
@@ -90,7 +102,7 @@ func _give_up(guest: Guest) -> void:
 
 func _unload_and_load(f: int) -> void:
 	for guest in _guests.duplicate():
-		if guest.state == Guest.State.RIDING and guest.destination == f:
+		if guest.state == Guest.State.RIDING and (guest.destination == f or guest.fed_up):
 			_unload(guest)
 
 	var delay := 0.0
@@ -128,7 +140,8 @@ func _unload(guest: Guest) -> void:
 	guest.state = Guest.State.LEAVING
 	guest.cab_slot = -1
 	elevator.door_blockers += 1
-	delivered.emit(guest)
+	if not guest.fed_up:
+		delivered.emit(guest)
 
 	guest.reparent(self)
 	var y := guest.global_position.y
@@ -160,6 +173,10 @@ func _update_calls() -> void:
 
 func _is_calling(guest: Guest) -> bool:
 	return guest.state == Guest.State.ARRIVING or guest.state == Guest.State.WAITING
+
+
+func _is_aboard(guest: Guest) -> bool:
+	return guest.state == Guest.State.BOARDING or guest.state == Guest.State.RIDING
 
 
 func _free_wait_spot(f: int) -> int:

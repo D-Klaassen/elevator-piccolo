@@ -13,7 +13,7 @@ const CAB_HEIGHT := 2.6
 const DOOR_HEIGHT := 2.1
 const DOOR_OPENING := 1.0
 const WALL := 0.1
-const SPEED := 1.5 ## metres per second
+const SPEED := 0.7 ## metres per second: about 5 s per floor
 const DOOR_TIME := 0.8 ## seconds
 
 @export var floor_count := 3

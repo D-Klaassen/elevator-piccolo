@@ -19,10 +19,9 @@ const LUNCH_GUESTS := 5 ## of those, the ones who come during the lunch rush
 const WAGE := 5.0 ## the near-nothing base pay, paid at the end of the shift
 const FARE := 2.0
 const MAX_TIP := 6.0
-const FULL_TIP_WAIT := 10.0 ## seconds from call to boarding that still earn the full tip
-const NO_TIP_WAIT := 60.0 ## seconds from call to boarding that earn no tip at all
+const FULL_TIP_SHARE := 0.2 ## boarding within this share of a guest's patience earns the full tip
 const START_STARS := 5.0
-const COMPLAINT := 0.5 ## stars lost for each guest who gave up waiting
+const COMPLAINT := 0.5 ## stars lost for each guest who gave up, waiting or riding
 const FIRED_BELOW := 2.0 ## stars
 
 ## Real seconds from 08:00 to 18:00.
@@ -93,9 +92,10 @@ static func make_schedule(r: RandomNumberGenerator) -> Array[float]:
 	return times
 
 
-## The tip for a guest who waited [param wait] seconds between calling and boarding.
-static func tip_for_wait(wait: float) -> float:
-	var share := clampf((NO_TIP_WAIT - wait) / (NO_TIP_WAIT - FULL_TIP_WAIT), 0.0, 1.0)
+## The tip for a guest who waited [param wait] seconds between calling and boarding:
+## the full tip early on, shrinking to nothing as they run out of [param patience].
+static func tip_for_wait(wait: float, patience: float) -> float:
+	var share := clampf((patience - wait) / (patience * (1.0 - FULL_TIP_SHARE)), 0.0, 1.0)
 	return roundf(MAX_TIP * share)
 
 
@@ -104,7 +104,7 @@ static func format_clock(m: float) -> String:
 
 
 func _on_delivered(guest: Guest) -> void:
-	var tip := tip_for_wait(guest.waited)
+	var tip := tip_for_wait(guest.waited, guest.patience)
 	served += 1
 	fares += FARE
 	tips += tip
@@ -116,7 +116,9 @@ func _on_gave_up(guest: Guest) -> void:
 	lost += 1
 	stars = maxf(stars - COMPLAINT, 0.0)
 	stats_changed.emit()
-	announced.emit('Floor %d: "Forget it, I\'ll take the stairs!"   Complaint: -%.1f star' % [guest.home_floor, COMPLAINT])
+	var said := 'Guest: "That\'s it, I\'m getting out at the next stop!"' if guest.fed_up \
+		else 'Floor %d: "Forget it, I\'ll take the stairs!"' % guest.home_floor
+	announced.emit("%s   Complaint: -%.1f star" % [said, COMPLAINT])
 
 
 func _end() -> void:
