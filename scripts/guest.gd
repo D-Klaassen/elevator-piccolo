@@ -1,12 +1,16 @@
 class_name Guest
 extends StaticBody3D
 ## A capsule placeholder guest. Waits in the hallway, rides the cab and walks out on
-## their floor. Look at them and click to hear which floor they want. A red "!" above
+## their floor. They greet you when they board or when you first click them, and wait for
+## your reply. After that, click them to hear which floor they want. A red "!" above
 ## their head means they're running out of patience.
 
 signal spoke(text: String)
+signal talk_requested ## clicked before they greeted you
 
 enum State { ARRIVING, WAITING, BOARDING, RIDING, LEAVING }
+## Your reply to their greeting, in the order the HUD offers them.
+enum Reply { FRIENDLY, NEUTRAL, RUDE }
 
 const WALK_SPEED := 1.2 ## metres per second
 ## How long each kind of guest waits for the cab, and puts up with the ride, in seconds.
@@ -28,6 +32,14 @@ const LINES: Array[String] = [
 	"I'm going to floor %d.",
 	"Morning! Floor %d, if you don't mind.",
 ]
+## What a guest says first, and the replies you can give, in [enum Reply] order.
+const GREETINGS: Array[Dictionary] = [
+	{"line": "Hello!", "replies": ["Hello, welcome aboard!", "Hi.", "Yeah, yeah. Get in."]},
+	{"line": "Hi there! Busy day?", "replies": ["Never too busy for you!", "Busy enough.", "Busier now."]},
+	{"line": "What a cute little lift!", "replies": ["Thank you, I keep it polished!", "It's a lift.", "Don't touch anything."]},
+	{"line": "Phew, long day already.", "replies": ["Then let me take you up in style.", "Mm.", "Not my problem."]},
+	{"line": "Lovely hotel, isn't it?", "replies": ["The loveliest! Enjoy your stay.", "It's alright.", "Wait till you see the rooms."]},
+]
 
 ## Shown in the HUD while the player looks at the guest.
 var display_name := "Guest (click to talk)"
@@ -37,6 +49,10 @@ var state := State.ARRIVING
 var wait_spot := -1 ## index of the hallway spot while arriving or waiting
 var cab_slot := -1 ## index of the spot in the cab while boarding or riding
 var line := ""
+var greeting: Dictionary = GREETINGS[0]
+var greeted := false ## said their greeting (they may still be waiting for your reply)
+var reply := Reply.NEUTRAL ## no reply counts as neutral
+var answered := false
 var temperament := "normal"
 var patience := 45.0 ## seconds they wait for the cab before taking the stairs
 var ride_patience := 25.0 ## seconds they ride before they want out at the next stop
@@ -96,7 +112,14 @@ func is_impatient() -> bool:
 
 
 func press() -> void:
-	spoke.emit(line)
+	if greeted:
+		spoke.emit(line)
+	else:
+		talk_requested.emit()
+
+
+func reply_line(r: Reply) -> String:
+	return greeting.replies[r]
 
 
 ## Walks through [param points] (global positions) one after the other, then calls [param on_done].

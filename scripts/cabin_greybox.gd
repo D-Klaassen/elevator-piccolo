@@ -13,6 +13,7 @@ var _looking_label: Label
 var _clock_label: Label
 var _stats_label: Label
 var _report: ShiftReport
+var _replies: ReplyChoices
 var _hint_timer: SceneTreeTimer
 var _shift: Shift
 
@@ -47,6 +48,9 @@ func _ready() -> void:
 	_build_hud()
 	elevator.hint.connect(_show_hint)
 	guests.said.connect(_show_hint)
+	guests.greeted.connect(_replies.show_for)
+	guests.reply_closed.connect(_replies.close)
+	_replies.chosen.connect(guests.reply)
 	_shift.announced.connect(_show_hint)
 	_shift.clock_changed.connect(_on_clock_changed)
 	_shift.stats_changed.connect(_on_stats_changed)
@@ -145,7 +149,7 @@ func _build_hud() -> void:
 	hud.add_child(_hint_label)
 
 	var help := Label.new()
-	help.text = "WASD walk · mouse look · click a button or a guest · Esc frees the mouse"
+	help.text = "WASD walk · mouse look · click a button or a guest · 1-3 or click to reply · Esc frees the mouse"
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	help.position += Vector2(16, -32)
 	help.modulate = Color(1, 1, 1, 0.6)
@@ -165,6 +169,10 @@ func _build_hud() -> void:
 	_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_stats_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	hud.add_child(_stats_label)
+
+	_replies = ReplyChoices.new()
+	_replies.name = "ReplyChoices"
+	hud.add_child(_replies)
 
 	_report = ShiftReport.new()
 	_report.name = "ShiftReport"

@@ -15,13 +15,21 @@ const LUNCH_START := 12 * 60
 const LUNCH_END := 13 * 60 + 30
 const GUESTS := 15 ## guests per shift in the rustic cabin
 const LUNCH_GUESTS := 5 ## of those, the ones who come during the lunch rush
+## The first guest calls right away, from the ground floor where the cab starts, so a
+## shift never opens with nothing to do.
+const FIRST_GUEST_AT := START + 5
+const FIRST_GUEST_FLOOR := 0
 
 const WAGE := 5.0 ## the near-nothing base pay, paid at the end of the shift
 const FARE := 2.0
 const MAX_TIP := 6.0
-const FULL_TIP_SHARE := 0.2 ## boarding within this share of a guest's patience earns the full tip
+const WAIT_TIP := 4.0 ## the most a guest tips for a quick pick-up alone
+const FULL_TIP_SHARE := 0.2 ## boarding within this share of a guest's patience earns the full wait tip
+const FRIENDLY_TIP := 2.0 ## a friendly reply adds this to the tip, up to MAX_TIP
+const RUDE_TIP_SHARE := 0.5 ## a rude reply leaves this share of the tip, rounded down
+const RUDE_COMPLAINT_CHANCE := 0.5 ## chance that a rude reply gets you a complaint
 const START_STARS := 5.0
-const COMPLAINT := 0.5 ## stars lost for each guest who gave up, waiting or riding
+const COMPLAINT := 0.5 ## stars lost for each complaint: a guest who gave up, waiting or riding, or a rude reply
 const FIRED_BELOW := 2.0 ## stars
 
 ## Real seconds from 08:00 to 18:00.
@@ -34,6 +42,7 @@ var minutes := float(START)
 var spawned := 0
 var served := 0
 var lost := 0
+var rude_complaints := 0
 var fares := 0.0
 var tips := 0.0
 var wage := 0.0
@@ -49,6 +58,7 @@ func _ready() -> void:
 	_schedule = make_schedule(rng)
 	guests.delivered.connect(_on_delivered)
 	guests.gave_up.connect(_on_gave_up)
+	guests.replied.connect(_on_replied)
 
 
 func _process(delta: float) -> void:
@@ -60,7 +70,8 @@ func _process(delta: float) -> void:
 		clock_changed.emit(int(minutes))
 
 	while spawning and not _schedule.is_empty() and _schedule[0] <= minutes and minutes < END:
-		if guests.spawn_random() == null:
+		var home := FIRST_GUEST_FLOOR if spawned == 0 else -1
+		if guests.spawn_random(home) == null:
 			break # no room in the hallways; try again next frame
 		_schedule.pop_front()
 		spawned += 1
@@ -83,9 +94,9 @@ func is_fired() -> bool:
 
 ## When the guests of one shift call, in minutes since midnight, sorted.
 static func make_schedule(r: RandomNumberGenerator) -> Array[float]:
-	var times: Array[float] = []
-	for i in GUESTS - LUNCH_GUESTS:
-		times.append(r.randf_range(START + 5, END - 30))
+	var times: Array[float] = [float(FIRST_GUEST_AT)]
+	for i in GUESTS - LUNCH_GUESTS - 1:
+		times.append(r.randf_range(FIRST_GUEST_AT, END - 30))
 	for i in LUNCH_GUESTS:
 		times.append(r.randf_range(LUNCH_START, LUNCH_END))
 	times.sort()
@@ -93,10 +104,21 @@ static func make_schedule(r: RandomNumberGenerator) -> Array[float]:
 
 
 ## The tip for a guest who waited [param wait] seconds between calling and boarding:
-## the full tip early on, shrinking to nothing as they run out of [param patience].
+## the full wait tip early on, shrinking to nothing as they run out of [param patience].
 static func tip_for_wait(wait: float, patience: float) -> float:
 	var share := clampf((patience - wait) / (patience * (1.0 - FULL_TIP_SHARE)), 0.0, 1.0)
-	return roundf(MAX_TIP * share)
+	return roundf(WAIT_TIP * share)
+
+
+## The whole tip: the wait tip, raised by a friendly reply and cut by a rude one.
+static func tip_for(wait: float, patience: float, reply: Guest.Reply) -> float:
+	var tip := tip_for_wait(wait, patience)
+	match reply:
+		Guest.Reply.FRIENDLY:
+			tip = minf(tip + FRIENDLY_TIP, MAX_TIP)
+		Guest.Reply.RUDE:
+			tip = floorf(tip * RUDE_TIP_SHARE)
+	return tip
 
 
 static func format_clock(m: float) -> String:
@@ -104,7 +126,7 @@ static func format_clock(m: float) -> String:
 
 
 func _on_delivered(guest: Guest) -> void:
-	var tip := tip_for_wait(guest.waited, guest.patience)
+	var tip := tip_for(guest.waited, guest.patience, guest.reply)
 	served += 1
 	fares += FARE
 	tips += tip
@@ -119,6 +141,15 @@ func _on_gave_up(guest: Guest) -> void:
 	var said := 'Guest: "That\'s it, I\'m getting out at the next stop!"' if guest.fed_up \
 		else 'Floor %d: "Forget it, I\'ll take the stairs!"' % guest.home_floor
 	announced.emit("%s   Complaint: -%.1f star" % [said, COMPLAINT])
+
+
+func _on_replied(guest: Guest) -> void:
+	if guest.reply != Guest.Reply.RUDE or rng.randf() >= RUDE_COMPLAINT_CHANCE:
+		return
+	rude_complaints += 1
+	stars = maxf(stars - COMPLAINT, 0.0)
+	stats_changed.emit()
+	announced.emit('Guest: "How rude! I\'ll be telling the manager."   Complaint: -%.1f star' % COMPLAINT)
 
 
 func _end() -> void:
