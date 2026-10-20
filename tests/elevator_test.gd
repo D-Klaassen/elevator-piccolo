@@ -102,7 +102,7 @@ func _test_doors_ride_along() -> void:
 	_press("close")
 	_check(await _wait_until(func() -> bool: return _elevator.current_floor == target and not _elevator._moving), "it rides to floor %d" % target)
 	await physics_frame
-	for door: AnimatableBody3D in [_elevator._left_door, _elevator._right_door]:
+	for door: AnimatableBody3D in _elevator.door_panels():
 		var body_y: float = PhysicsServer3D.body_get_state(door.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM).origin.y
 		_check(absf(body_y - door.global_position.y) < 0.01, "%s's collision is where the door is (%.2f, %.2f)" % [door.name, body_y, door.global_position.y])
 	_press("open")

@@ -42,7 +42,7 @@ const CATALOGUE: Array[Dictionary] = [
 		"id": DOORS,
 		"name": "Faster doors",
 		"prices": [100.0, 250.0],
-		"effects": ["Doors open and close in 0.55 s", "Doors open and close in 0.35 s"],
+		"effects": ["Doors open in 0.85 s, close in 1.1 s", "Doors open in 0.55 s, close in 0.7 s"],
 	},
 	{
 		"id": SPANISH,
@@ -63,8 +63,8 @@ const CATALOGUE: Array[Dictionary] = [
 const RIDE_PATIENCE: Array[float] = [1.0, 1.25, 1.5, 1.75]
 ## By level: how many guests fit in the cab.
 const CAPACITY: Array[int] = [3, 4, 5]
-## By level: seconds the doors take to open or close.
-const DOOR_TIME: Array[float] = [0.8, 0.55, 0.35]
+## By level: seconds the doors take to open (closing takes [constant Elevator.CLOSE_SLOWER] times as long).
+const DOOR_TIME: Array[float] = [1.2, 0.85, 0.55]
 
 
 static func find(id: String) -> Dictionary:

@@ -12,20 +12,75 @@ var _player: Player
 func _run() -> void:
 	_shift.spawning = false
 	_player = _scene.get_node("Player")
+	_test_speed_curves()
+	await _test_panels()
 	await _test_doors_follow_the_cab()
 	await _test_shut_out()
 	await _test_cab_elsewhere()
 	await _test_cab_open_elsewhere()
 
 
+## Like a real elevator's: opening speeds up, glides and eases in; closing glides and then
+## creeps the last bit.
+func _test_speed_curves() -> void:
+	var opening := Elevator.OPENING_SPEED
+	var closing := Elevator.CLOSING_SPEED
+	_check(is_zero_approx(Elevator.travelled(opening, 0.0)) and is_equal_approx(Elevator.travelled(opening, 1.0), 1.0), "a door move goes from start to end")
+	_check(Elevator.travelled(opening, 0.15) < 0.08, "opening starts slowly (%.2f of the way after 15%% of the time)" % Elevator.travelled(opening, 0.15))
+	_check(Elevator.travelled(opening, 0.6) - Elevator.travelled(opening, 0.4) > 0.25, "glides in the middle")
+	_check(1.0 - Elevator.travelled(opening, 0.85) < 0.06, "and eases into the wall")
+	var creep := 1.0 - Elevator.travelled(closing, 0.8)
+	_check(creep < 0.1, "closing creeps the last bit: the last 20%% of the time covers %.0f%% of the way" % (creep * 100))
+
+
+func _test_panels() -> void:
+	var panels := _elevator.door_panels()
+	_check(panels.size() == 4, "the cab's doors have two panels a side")
+	_check(_stacked(panels), "open, each side's two panels are stacked beside the opening")
+	_press("close")
+	_check(await _wait_until(func() -> bool: return _elevator.door_amount < 0.5), "closing")
+	var left_lead := absf(panels[0].position.x) - Elevator.PANEL_WIDTH * 0.5
+	var left_trail := absf(panels[1].position.x) - Elevator.PANEL_WIDTH * 1.5
+	_check(is_equal_approx(left_lead, 2.0 * left_trail), "they telescope: the leading panel is twice as far from shut as the trailing one (%.3f, %.3f)" % [left_lead, left_trail])
+	await _wait_until(func() -> bool: return not _elevator.doors_open and not _elevator._doors_busy)
+	var xs := panels.map(func(p: Node3D) -> float: return p.position.x)
+	xs.sort()
+	var tiled := true
+	for i in xs.size():
+		tiled = tiled and is_equal_approx(xs[i], -Elevator.DOOR_OPENING / 2 + Elevator.PANEL_WIDTH * (i + 0.5))
+	_check(tiled, "shut, the four panels fill the opening side by side (%s)" % [xs])
+
+	_press("open")
+	_check(await _wait_until(func() -> bool: return _elevator.door_amount > 0.02), "opening")
+	_check(not _landing_open(0) and absf(_elevator.landing_doors(0)[0].position.x + Elevator.PANEL_WIDTH / 2) < 0.001, "the cab's doors lead: the landing doors haven't moved yet")
+	await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
+	_check(_stacked(_elevator.landing_doors(0)), "and the landing doors end up stacked in the wall too")
+
+
+## True if each side's leading and trailing panel of [param panels] are stacked, beside the
+## opening.
+func _stacked(panels: Array) -> bool:
+	for side in [0, 2]:
+		var lead: Node3D = panels[side]
+		var trail: Node3D = panels[side + 1]
+		if not is_equal_approx(lead.position.x, trail.position.x) or absf(lead.position.x) - Elevator.PANEL_WIDTH / 2 < Elevator.DOOR_OPENING / 2 - 0.001:
+			return false
+	return true
+
+
 func _test_doors_follow_the_cab() -> void:
 	_check(_landing_open(0) and not _landing_open(1) and not _landing_open(2), "at the start the ground floor's landing doors are open with the cab's, the others shut")
 	_check(_elevator.call_button(1) != null and _elevator.call_button(1).display_name == "Call the elevator", "every hallway has a call button")
+	_check(_elevator.call_button(1).find_children("*", "Label3D", false, false).is_empty(), "a plain one, with no caption")
+	var edges: Array = _elevator.landing_doors(0).map(func(p: Node3D) -> float: return absf(p.position.x) - Elevator.PANEL_WIDTH / 2)
+	_check(edges.all(func(e: float) -> bool: return e > Elevator.DOOR_OPENING / 2 + 0.01), "open landing doors slide right into the wall, not flush with the opening's edge (%s)" % [edges])
 	_press("close")
 	await _wait_until(func() -> bool: return not _elevator.doors_open and not _elevator._doors_busy)
 	_check(not _landing_open(0), "closing the cab's doors closes the landing doors too")
 	_check(_blocked(0), "and they block the way into the shaft")
+	var chimes := _elevator.chimes
 	await _ride_to(1)
+	_check(_elevator.chimes == chimes + 1, "arriving on the way up, the chime rings once")
 	_check(_landing_open(1) and not _landing_open(0), "on floor 1 its landing doors open with the cab's, the ground floor's stay shut")
 	_check(not _blocked(1) and _blocked(0), "so you can step out on floor 1 but not into the shaft on floor 0")
 
@@ -55,9 +110,15 @@ func _test_cab_elsewhere() -> void:
 	_press("close")
 	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 2 and not _elevator._moving, 20.0), "the cab leaves without you")
 	_check(not _landing_open(1) and _blocked(1), "and floor 1's landing doors stay shut behind it")
+	var chimes := _elevator.chimes
 	_elevator.call_button(1).press()
 	_check(_elevator.call_button(1).lit and _elevator.is_called_from_hall(1), "pressing call lights it up")
-	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 1 and _elevator.is_open_at_rest(), 20.0), "the cab comes back to floor 1 and opens up by itself")
+	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 1 and not _elevator._moving, 20.0), "the cab comes back to floor 1")
+	_check(_elevator.chimes == chimes + 2, "on the way down, the chime rings twice")
+	_check(not _elevator._doors_busy and _elevator.door_amount == 0.0, "the doors wait for the chime")
+	await _wait_seconds(Elevator.ARRIVAL_PAUSE / 2)
+	_check(_elevator.door_amount == 0.0, "for a moment")
+	_check(await _wait_until(func() -> bool: return _elevator.is_open_at_rest(), 5.0), "then open up by themselves")
 	_check(_landing_open(1) and not _elevator.call_button(1).lit, "landing doors open, and the call button goes out")
 
 

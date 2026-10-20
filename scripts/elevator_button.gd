@@ -36,8 +36,9 @@ func setup(p_action: String, p_display_name: String, caption: String) -> void:
 	add_child(shape)
 
 	# The panel hangs on the -X wall, so the caption faces +X (into the cab).
-	var caption_label := Greybox.label(self, caption, Vector3(0.025, 0, 0), 90.0, 22)
-	caption_label.modulate = Color.BLACK
+	if not caption.is_empty():
+		var caption_label := Greybox.label(self, caption, Vector3(0.025, 0, 0), 90.0, 22)
+		caption_label.modulate = Color.BLACK
 
 
 func press() -> void:
