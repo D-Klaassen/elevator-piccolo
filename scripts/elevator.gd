@@ -2,7 +2,8 @@ class_name Elevator
 extends Node3D
 ## The elevator cab: walls, sliding doors, the button panel, the call panel and the floor indicator.
 ## It only goes where its floor buttons send it. Floor presses queue up and stay lit; once
-## the doors are closed it rides to the next one, and the doors open by themselves on arrival.
+## the doors are closed it rides to the next one. At a stop with more floors still queued the
+## doors open by themselves; at the last one they stay shut until you press open.
 ## The door buttons stay lit until the doors have done what was asked.
 
 signal hint(text: String)
@@ -280,7 +281,7 @@ func _arrive(target: int) -> void:
 	current_floor = target
 	_moving = false
 	_queue.erase(target)
-	_doors_target = true # the doors open by themselves on arrival
+	_doors_target = not _queue.is_empty() # open by themselves only if the trip goes on
 	_update_button_lights()
 	hint.emit("Ding! Floor %d." % target)
 

@@ -49,17 +49,19 @@ func _load_scene(scene: Node3D) -> void:
 	_elevator.hint.connect(func(text: String) -> void: _last_hint = text)
 
 
-## Presses floor [param f] and close, then waits for the cab to get there and open its
-## doors. With [param report] false it still counts failures but prints only those.
+## Presses floor [param f] and close, waits for the cab to get there, then presses open.
+## With [param report] false it still counts failures but prints only those.
 func _ride_to(f: int, report := true) -> void:
 	var clear := await _wait_until(func() -> bool: return _elevator.door_blockers == 0 and not _elevator._moving)
 	if report or not clear:
 		_check(clear, "doorway clear before leaving")
 	_press(str(f))
 	_press("close")
-	var arrived := await _wait_until(func() -> bool: return _elevator.current_floor == f and _elevator.is_open_at_rest())
-	if report or not arrived:
-		_check(arrived, "cab arrives at floor %d and opens up" % f)
+	var arrived := await _wait_until(func() -> bool: return _elevator.current_floor == f and not _elevator._moving)
+	_press("open")
+	var opened := await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
+	if report or not (arrived and opened):
+		_check(arrived and opened, "cab arrives at floor %d and opens up" % f)
 
 
 func _press(action: String) -> void:
