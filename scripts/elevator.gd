@@ -1,6 +1,6 @@
 class_name Elevator
 extends Node3D
-## The elevator cab: walls, sliding doors, the button panel, the call panel and the floor indicator.
+## The elevator cab: walls, sliding doors, the button panel, the call panel and the floor display.
 ## It only goes where its floor buttons send it, and the doors only move when you press
 ## open or close. Floor presses queue up and stay lit; with the doors closed it rides to the
 ## next one. At a stop with more floors queued it waits until you press close again.
@@ -40,6 +40,7 @@ const LANDING_TUCK := 0.03 ## metres open landing doors slide past the opening's
 ## Share of the way the cab's doors go before they pick up the landing doors.
 const LANDING_LAG := 0.06
 const ARRIVAL_PAUSE := 0.6 ## seconds between the chime and the doors opening by themselves
+const DISPLAY_HEIGHT := DOOR_HEIGHT + 0.3 ## the middle of the floor displays over the doors
 ## How fast the doors move over the course of opening and of closing, as [time, speed]
 ## points with straight lines between them (both from 0 to 1, the speed relative): opening
 ## speeds up, glides and eases into the wall; closing glides, slows to a creep and stops
@@ -85,7 +86,8 @@ var _door_panels: Array[AnimatableBody3D] = []
 var _landing_doors: Array[Array] = [] ## per floor: its panels, in the same order
 var _door_from := 1.0 ## door_amount when the doors started moving
 var _door_to := 1.0
-var _indicator: Label3D
+var _displays: Array[FloorDisplay] = [] ## the cab's, then each landing's
+var _direction := 0 ## 1 riding up, -1 down, 0 standing
 var _call_lamps: Array[MeshInstance3D] = []
 var _call_states: Array[CallLamp] = []
 var _blink_time := 0.0
@@ -214,9 +216,12 @@ func _build_cab() -> void:
 	light.light_energy = 1.2
 	_cab.add_child(light)
 
-	# Floor indicator above the door, readable from inside (faces -Z).
-	_indicator = Greybox.label(_cab, "0", Vector3(0, DOOR_HEIGHT + 0.3, CAB_SKIN_Z - SKIN / 2 - 0.01), 180.0, 96)
-	_indicator.modulate = Color(1, 0.4, 0.2)
+	# Floor display above the door, readable from inside (faces -Z).
+	var display := FloorDisplay.new()
+	display.position = Vector3(0, DISPLAY_HEIGHT, CAB_SKIN_Z - SKIN / 2)
+	display.rotation_degrees.y = 180.0
+	_cab.add_child(display)
+	_displays.append(display)
 
 
 ## The cab's door panels, between its front wall and its inner front wall: the trailing
@@ -276,17 +281,28 @@ func _build_landings() -> void:
 		_landing_doors.append(_make_panels(landing, landing_z - offset, landing_z + offset))
 
 		var hall_face := landing_z + WALL / 2
-		var plate_at := Vector3(DOOR_OPENING / 2 + 0.3, 1.25, hall_face + 0.005)
-		# A plain yellow button on a dark plate, like the cab's.
-		Greybox.box(landing, Vector3(0.16, 0.22, 0.01), plate_at, Color(0.15, 0.13, 0.12), false)
+		var plate_at := Vector3(DOOR_OPENING / 2 + 0.3, 1.1, hall_face + 0.006)
+		# A round yellow button on a brushed-steel plate.
+		Greybox.box(landing, Vector3(0.12, 0.2, 0.012), plate_at, Color.WHITE, false, Interior.brushed_steel())
 		var button := ElevatorButton.new()
 		button.name = "CallButton"
-		button.position = plate_at + Vector3(0, 0, 0.025)
+		button.position = plate_at + Vector3(0, 0, 0.012)
 		button.rotation_degrees.y = -90.0 # its face (+X) towards the hallway (+Z)
 		landing.add_child(button)
-		button.setup("call %d" % f, "Call the elevator", "")
+		button.setup("call %d" % f, "Call the elevator", "", true)
 		button.pressed.connect(_on_call_pressed.bind(f))
 		_call_buttons.append(button)
+
+		# Where the cab is, over the door.
+		var display := FloorDisplay.new()
+		display.position = Vector3(0, DISPLAY_HEIGHT, hall_face)
+		landing.add_child(display)
+		_displays.append(display)
+
+
+## The floor displays: the cab's, then each floor's in its hallway.
+func floor_displays() -> Array[FloorDisplay]:
+	return _displays
 
 
 ## The landing doors and call button of floor [param f].
@@ -503,6 +519,7 @@ func _update_button_lights() -> void:
 
 func _move_to(target: int) -> void:
 	_moving = true
+	_direction = signi(target - current_floor)
 	var distance := absf(target - current_floor) * FLOOR_HEIGHT
 	var tween := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -511,12 +528,14 @@ func _move_to(target: int) -> void:
 
 
 func _process(delta: float) -> void:
-	var f := roundi(_cab.position.y / FLOOR_HEIGHT)
-	_indicator.text = str(clampi(f, 0, floor_count - 1))
+	var f := clampi(roundi(_cab.position.y / FLOOR_HEIGHT), 0, floor_count - 1)
+	for display in _displays:
+		display.show_floor(f, _direction)
 	_update_call_lamps(delta)
 
 
 func _arrive(target: int) -> void:
+	_direction = 0
 	_chime(target < current_floor)
 	current_floor = target
 	_moving = false

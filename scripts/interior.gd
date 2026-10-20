@@ -41,6 +41,9 @@ const CAB_FLOOR: Array = ["checker", 0.8, Color("2b2523"), Color("d8cfbd")]
 const CAB_CEILING: Array = ["plain", 1.0, Color("efe6d2")]
 const BRASS := Color("d9b25a")
 const STEEL := Color("a8acb4")
+const DOOR_JAMB := 0.06 ## width of the steel jamb round the elevator opening in the hallways
+## Brushed steel: grain colours and the light band's, over a door's height.
+const BRUSHED: Array = ["brushed", 2.2, Color("9a9ea6"), Color("8c9098"), Color("b4b8c0")]
 const HANDRAIL_HEIGHT := 0.9
 
 static var _textures := {}
@@ -94,6 +97,7 @@ static func texture(surface: Array) -> ImageTexture:
 		"carpet": _draw_carpet(image, colours)
 		"panels": _draw_panels(image, colours)
 		"checker": _draw_checker(image, colours)
+		"brushed": _draw_brushed(image, colours)
 		_: image.fill(colours[0])
 	image.generate_mipmaps()
 	var tex := ImageTexture.create_from_image(image)
@@ -169,6 +173,18 @@ static func _draw_panels(image: Image, c: Array) -> void:
 		_rect(image, left, 0, 1, TEXTURE_SIZE, c[2])
 
 
+## A fine vertical grain, every column a little lighter or darker, with a soft light band
+## across it, which falls a quarter of the way down a door panel (at about 1.6 m).
+static func _draw_brushed(image: Image, c: Array) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	for x in TEXTURE_SIZE:
+		var grain: Color = (c[0] as Color).lerp(c[1], rng.randf())
+		for y in TEXTURE_SIZE:
+			var band := exp(-pow((y - TEXTURE_SIZE * 0.73) / (TEXTURE_SIZE * 0.06), 2.0))
+			image.set_pixel(x, y, grain.lerp(c[2], band * 0.7))
+
+
 static func _draw_checker(image: Image, c: Array) -> void:
 	var square := TEXTURE_SIZE / 2
 	for y in 2:
@@ -224,12 +240,25 @@ static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: flo
 		for sign_x in [-1.0, 1.0]:
 			_box(parent, Vector3(side - 0.1, rail, 0.04), Vector3(sign_x * (opening + 0.1 + (side - 0.1) / 2 - 0.05), rail_y, landing_face + 0.02), trim)
 
-	# A frame round the elevator opening, on the hallway side.
+	# Round the elevator opening on the hallway side: a deep brushed-steel jamb, and the
+	# hotel's own frame round that.
+	# The jamb overlaps the doors' outer edges a little, as a real one does, hiding them.
+	var jamb := DOOR_JAMB
+	var lap := 0.012
+	var jamb_depth := 0.05
+	var steel := brushed_steel()
+	for sign_x in [-1.0, 1.0]:
+		_box(parent, Vector3(jamb + lap, Elevator.DOOR_HEIGHT + jamb, jamb_depth), Vector3(sign_x * (opening + (jamb - lap) / 2), y + (Elevator.DOOR_HEIGHT + jamb) / 2, landing_face + jamb_depth / 2), steel)
+	_box(parent, Vector3(Elevator.DOOR_OPENING + 2 * jamb, jamb + lap, jamb_depth), Vector3(0, y + Elevator.DOOR_HEIGHT + (jamb - lap) / 2, landing_face + jamb_depth / 2), steel)
 	var frame := 0.1
 	var frame_z := landing_face + 0.02
+	var outer := opening + jamb
 	for sign_x in [-1.0, 1.0]:
-		_box(parent, Vector3(frame, Elevator.DOOR_HEIGHT + frame, 0.04), Vector3(sign_x * (opening + frame / 2), y + (Elevator.DOOR_HEIGHT + frame) / 2, frame_z), trim)
-	_box(parent, Vector3(Elevator.DOOR_OPENING + 2 * frame, frame, 0.04), Vector3(0, y + Elevator.DOOR_HEIGHT + frame / 2, frame_z), trim)
+		_box(parent, Vector3(frame, Elevator.DOOR_HEIGHT + jamb + frame, 0.04), Vector3(sign_x * (outer + frame / 2), y + (Elevator.DOOR_HEIGHT + jamb + frame) / 2, frame_z), trim)
+	_box(parent, Vector3(2 * (outer + frame), frame, 0.04), Vector3(0, y + Elevator.DOOR_HEIGHT + jamb + frame / 2, frame_z), trim)
+
+	# A dark metal threshold across the opening, from the doors' track to the hallway floor.
+	_threshold(parent, Vector3(0, y, (landing_z - 0.05 + landing_face + 0.06) / 2), 0.11 + 0.05)
 
 	# The ceiling, and a lamp in the middle of it.
 	_box(parent, Vector3(2 * half, 0.02, depth), Vector3(0, y + wall_h - 0.01, mid_z), material(s.ceiling))
@@ -247,24 +276,37 @@ static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: flo
 	_box(parent, Vector3(plate.x + 0.1, plate.y + 0.1, back_face - plate_face - 0.003), Vector3(sign.position.x, sign.position.y, (plate_face + 0.003 + back_face) / 2), trim)
 
 
-## Trims the cab ([param cab], [param w] its half width, [param h] its height): a light
-## in the ceiling, a brass handrail on the back and right-hand walls, and a skirting.
 ## One door panel, [param width] by [param height] and [param thickness] thick, on [param
-## body]: matt brushed steel with a dark rubber edge down both sides, so the panels read as
-## solid slabs with seams between them, the same from either side.
+## body]: brushed steel (a fine vertical grain with a soft light band across it, as the
+## light catches it) with a dark rubber edge down both sides, so the panels read as solid
+## slabs with seams between them, the same from either side.
 static func door_panel(body: Node3D, width: float, height: float, thickness: float) -> void:
-	var steel: StandardMaterial3D = _materials.get("door_steel")
-	if steel == null:
-		steel = Greybox.material(STEEL.darkened(0.1))
-		steel.metallic = 0.35
-		steel.roughness = 0.75
-		_materials["door_steel"] = steel
-	Greybox.box(body, Vector3(width, height, thickness), Vector3.ZERO, Color.WHITE, true, steel)
+	Greybox.box(body, Vector3(width, height, thickness), Vector3.ZERO, Color.WHITE, true, brushed_steel())
 	var edge := 0.012
 	for sign_x in [-1.0, 1.0]:
 		_box(body, Vector3(edge, height, thickness + 0.004), Vector3(sign_x * (width - edge) / 2, 0, 0), flat(Color("2a2a2e")))
 
 
+## A threshold strip across a door opening, [param depth] deep, its middle at [param at]
+## on the floor: dark metal, a few millimetres high, with a groove down the middle where
+## the doors run.
+static func _threshold(parent: Node3D, at: Vector3, depth: float) -> void:
+	var width := Elevator.DOOR_OPENING + 0.04
+	_box(parent, Vector3(width, 0.006, depth), at + Vector3(0, 0.003, 0), flat(Color("4a4c52"), 0.4))
+	_box(parent, Vector3(width, 0.007, 0.012), at + Vector3(0, 0.0035, 0), flat(Color("1c1c20")))
+
+
+## Brushed steel for the doors, the door frames and the call plates. Fixed to each piece,
+## not to the world, as the cab's doors move.
+static func brushed_steel() -> StandardMaterial3D:
+	var steel := material(BRUSHED, true)
+	steel.metallic = 0.35
+	steel.roughness = 0.6
+	return steel
+
+
+## Trims the cab ([param cab], [param w] its half width, [param h] its height): a light
+## in the ceiling, a brass handrail on the back and right-hand walls, and a skirting.
 static func trim_cab(cab: Node3D, w: float, h: float, wall: float, front_face: float) -> void:
 	var brass := flat(BRASS, 0.2)
 	var inner := w - wall / 2
@@ -301,6 +343,10 @@ static func trim_cab(cab: Node3D, w: float, h: float, wall: float, front_face: f
 	for sign_x in [-1.0, 1.0]:
 		_box(cab, Vector3(frame, Elevator.DOOR_HEIGHT + frame, 0.04), Vector3(sign_x * (opening + frame / 2), (Elevator.DOOR_HEIGHT + frame) / 2, frame_z), dark)
 	_box(cab, Vector3(Elevator.DOOR_OPENING + 2 * frame, frame, 0.04), Vector3(0, Elevator.DOOR_HEIGHT + frame / 2, frame_z), dark)
+
+	# The threshold the doors run in, from the inner front wall to the front wall's outside.
+	var outside := w + wall / 2
+	_threshold(cab, Vector3(0, 0, (front_face + outside) / 2), outside - front_face)
 
 
 static func _box(parent: Node3D, size: Vector3, center: Vector3, surface: Material) -> MeshInstance3D:
