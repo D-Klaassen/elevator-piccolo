@@ -2,13 +2,13 @@ class_name GuestManager
 extends Node3D
 ## Spawns guests on random floors, lights the call panel, and walks guests in and out
 ## of the cab whenever its doors stand open on their floor. Guests who wait too long give up.
-## Guests greet you one at a time and wait a moment for your [method reply].
+## Now and then a riding guest strikes up a chat and waits a moment for your [method reply].
 ## When guests turn up is up to the [Shift].
 
 signal said(text: String)
 signal delivered(guest: Guest)
 signal gave_up(guest: Guest)
-signal greeted(guest: Guest) ## a guest greets you and waits for your reply
+signal chatting(guest: Guest) ## a guest starts a chat and waits for your reply
 signal replied(guest: Guest)
 signal reply_closed ## the reply choices can go: answered, no answer in time, or the guest left
 
@@ -21,17 +21,20 @@ const LANDING_Z := 1.8 ## just in front of the landing opening
 const CAB_DOOR_Z := 0.5 ## just inside the cab doors
 const HALL_END_Z := 4.4 ## where guests come from and go to
 const REPLY_TIME := 10.0 ## seconds a guest waits for your reply; no reply counts as neutral
+const CHAT_DELAY_MIN := 3.0 ## seconds after they start boarding before a chatty guest speaks up
+const CHAT_DELAY_MAX := 6.0
 
 ## Multiplies every guest's patience. Upgrades (music and the like) will raise it.
 @export var patience_scale := 1.0
+## Share of guests who strike up a chat during the ride.
+@export var chat_chance := 0.4
 
 var elevator: Elevator
 var rng := RandomNumberGenerator.new()
-## The guest who greeted you and waits for your reply, or null.
+## The guest who started a chat and waits for your reply, or null.
 var talking_to: Guest
 
 var _guests: Array[Guest] = []
-var _greet_queue: Array[Guest] = [] ## guests who want to greet you once [member talking_to] is done
 var _reply_left := 0.0
 
 
@@ -46,6 +49,8 @@ func _process(delta: float) -> void:
 			if guest.rode >= guest.ride_patience:
 				guest.fed_up = true # they get out at the next open doors
 				gave_up.emit(guest)
+			elif _wants_to_chat(guest):
+				_start_chat(guest)
 	_update_calls()
 
 	if talking_to:
@@ -68,7 +73,7 @@ func reply(choice: Guest.Reply) -> void:
 	var guest := talking_to
 	guest.reply = choice
 	guest.answered = true
-	said.emit('You: "%s"' % guest.reply_line(choice))
+	said.emit('Guest: "%s"' % Guest.REACTIONS[choice].pick_random())
 	replied.emit(guest)
 	_close_talk()
 
@@ -97,7 +102,10 @@ func spawn_guest(home: int, destination: int) -> Guest:
 		return null
 	var guest := Guest.new()
 	guest.setup(home, destination, Color.from_hsv(rng.randf(), 0.45, 0.85), Guest.LINES.pick_random())
-	guest.greeting = Guest.GREETINGS.pick_random()
+	if rng.randf() < chat_chance:
+		guest.chat = Guest.CHATS.pick_random()
+		guest.chat_at = rng.randf_range(CHAT_DELAY_MIN, CHAT_DELAY_MAX)
+		guest.reply_order.shuffle()
 	var temperament: Dictionary = Guest.TEMPERAMENTS[rng.randi_range(0, Guest.TEMPERAMENTS.size() - 1)]
 	guest.temperament = temperament.name
 	guest.patience = temperament.wait * patience_scale
@@ -107,7 +115,6 @@ func spawn_guest(home: int, destination: int) -> Guest:
 	var y := _floor_y(home)
 	guest.global_position = Vector3(_random_side(), y, HALL_END_Z)
 	guest.spoke.connect(func(text: String) -> void: said.emit('Guest: "%s"' % text))
-	guest.talk_requested.connect(_greet.bind(guest, true))
 	_guests.append(guest)
 
 	var wait_at := WAIT_SPOTS[spot] + Vector3(0, y, 0)
@@ -165,7 +172,6 @@ func _on_boarded(guest: Guest) -> void:
 	guest.state = Guest.State.RIDING
 	elevator.door_blockers -= 1
 	guest.face(guest.global_position + Vector3.BACK) # face the doors (+Z)
-	_greet(guest)
 
 
 func _unload(guest: Guest) -> void:
@@ -194,37 +200,25 @@ func _remove(guest: Guest) -> void:
 	guest.queue_free()
 
 
-## Lines [param guest] up to greet you, or at the front of the line when you clicked them.
-func _greet(guest: Guest, clicked := false) -> void:
-	if guest.greeted:
-		return
-	_greet_queue.erase(guest)
-	if clicked:
-		_greet_queue.push_front(guest)
-	else:
-		_greet_queue.append(guest)
-	if talking_to == null:
-		_next_greeting()
+func _wants_to_chat(guest: Guest) -> bool:
+	return talking_to == null and guest.state == Guest.State.RIDING and not guest.chat.is_empty() \
+		and not guest.chatted and guest.rode >= guest.chat_at
 
 
-func _next_greeting() -> void:
-	if _greet_queue.is_empty():
-		return
-	talking_to = _greet_queue.pop_front()
-	talking_to.greeted = true
+func _start_chat(guest: Guest) -> void:
+	talking_to = guest
+	guest.chatted = true
 	_reply_left = REPLY_TIME
-	greeted.emit(talking_to)
+	chatting.emit(guest)
 
 
 func _close_talk() -> void:
 	talking_to = null
 	reply_closed.emit()
-	_next_greeting()
 
 
-## Drops [param guest] from the conversation when they leave. An unanswered greeting counts as neutral.
+## Ends the chat when [param guest] leaves. An unanswered chat counts as neutral.
 func _forget_talk(guest: Guest) -> void:
-	_greet_queue.erase(guest)
 	if talking_to == guest:
 		_close_talk()
 

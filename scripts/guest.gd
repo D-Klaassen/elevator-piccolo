@@ -1,16 +1,15 @@
 class_name Guest
 extends StaticBody3D
 ## A capsule placeholder guest. Waits in the hallway, rides the cab and walks out on
-## their floor. They greet you when they board or when you first click them, and wait for
-## your reply. After that, click them to hear which floor they want. A red "!" above
-## their head means they're running out of patience.
+## their floor. Look at them and click to hear which floor they want. Some guests strike
+## up a chat during the ride and wait for your reply. A red "!" above their head means
+## they're running out of patience.
 
 signal spoke(text: String)
-signal talk_requested ## clicked before they greeted you
 
 enum State { ARRIVING, WAITING, BOARDING, RIDING, LEAVING }
-## Your reply to their greeting, in the order the HUD offers them.
-enum Reply { FRIENDLY, NEUTRAL, RUDE }
+## How well your reply to their chat lands with them.
+enum Reply { GOOD, NEUTRAL, BAD }
 
 const WALK_SPEED := 1.2 ## metres per second
 ## How long each kind of guest waits for the cab, and puts up with the ride, in seconds.
@@ -32,13 +31,55 @@ const LINES: Array[String] = [
 	"I'm going to floor %d.",
 	"Morning! Floor %d, if you don't mind.",
 ]
-## What a guest says first, and the replies you can give, in [enum Reply] order.
-const GREETINGS: Array[Dictionary] = [
-	{"line": "Hello!", "replies": ["Hello, welcome aboard!", "Hi.", "Yeah, yeah. Get in."]},
-	{"line": "Hi there! Busy day?", "replies": ["Never too busy for you!", "Busy enough.", "Busier now."]},
-	{"line": "What a cute little lift!", "replies": ["Thank you, I keep it polished!", "It's a lift.", "Don't touch anything."]},
-	{"line": "Phew, long day already.", "replies": ["Then let me take you up in style.", "Mm.", "Not my problem."]},
-	{"line": "Lovely hotel, isn't it?", "replies": ["The loveliest! Enjoy your stay.", "It's alright.", "Wait till you see the rooms."]},
+## What a chatty guest says, and the replies you can give, in [enum Reply] order. The best
+## reply depends on what they say: not always the warmest one, never an obviously rude one.
+const CHATS: Array[Dictionary] = [
+	{"line": "Sorry, I'm in a real hurry. Is this thing always this slow?", "replies": [
+		"Not long now, I'll have you there in a moment.",
+		"It's an old lift.",
+		"Ah, but it has history! Built in 1921, the original cables are still...",
+	]},
+	{"line": "My meeting ran late, and now I've missed lunch.", "replies": [
+		"The kitchen does sandwiches till three. Ask for Marta.",
+		"That's a shame.",
+		"Cheer up! Skipping lunch is good for you, they say.",
+	]},
+	{"line": "I don't really do small talk, sorry.", "replies": [
+		"Of course. A quiet ride it is.",
+		"Okay.",
+		"Oh, just one question then: where are you from?",
+	]},
+	{"line": "Lovely day out, isn't it?", "replies": [
+		"Perfect for the lake walk, if you have the time.",
+		"Not bad at all.",
+		"Enjoy it while it lasts, they say rain's coming this afternoon.",
+	]},
+	{"line": "Will my room be ready? I was told two o'clock.", "replies": [
+		"I'll ask the front desk to ring you the moment it is.",
+		"Best to ask at the front desk.",
+		"They always say two, but between us it's usually more like three.",
+	]},
+	{"line": "Do you ever get bored, going up and down all day?", "replies": [
+		"Never. Every ride is someone new.",
+		"Sometimes.",
+		"Honestly? You're the first to ask. Nobody really talks to me...",
+	]},
+	{"line": "Phew, those stairs outside nearly finished me off.", "replies": [
+		"Then sit back, this ride's on the house.",
+		"They are steep.",
+		"Good for the legs, though! I take them twice a day myself.",
+	]},
+	{"line": "Is there anywhere to get a decent coffee around here?", "replies": [
+		"The bakery across the road. Skip ours.",
+		"There's a coffee machine in the lounge on floor 1.",
+		"Ours is the best in town!",
+	]},
+]
+## What a guest says back, by how well your reply landed.
+const REACTIONS: Array[Array] = [
+	["Ha! Now that's service.", "Oh, thank you!", "You're good at this."],
+	["Hm.", "Right.", "Okay then."],
+	["Excuse me?", "Wow. Okay.", "I didn't ask."],
 ]
 
 ## Shown in the HUD while the player looks at the guest.
@@ -49,8 +90,10 @@ var state := State.ARRIVING
 var wait_spot := -1 ## index of the hallway spot while arriving or waiting
 var cab_slot := -1 ## index of the spot in the cab while boarding or riding
 var line := ""
-var greeting: Dictionary = GREETINGS[0]
-var greeted := false ## said their greeting (they may still be waiting for your reply)
+var chat := {} ## one of [constant CHATS], or empty for a quiet guest
+var chat_at := 0.0 ## seconds into the ride when they start their chat
+var chatted := false ## started their chat (they may still be waiting for your reply)
+var reply_order: Array[Reply] = [Reply.GOOD, Reply.NEUTRAL, Reply.BAD] ## how the HUD lists the replies
 var reply := Reply.NEUTRAL ## no reply counts as neutral
 var answered := false
 var temperament := "normal"
@@ -112,14 +155,11 @@ func is_impatient() -> bool:
 
 
 func press() -> void:
-	if greeted:
-		spoke.emit(line)
-	else:
-		talk_requested.emit()
+	spoke.emit(line)
 
 
 func reply_line(r: Reply) -> String:
-	return greeting.replies[r]
+	return chat.replies[r]
 
 
 ## Walks through [param points] (global positions) one after the other, then calls [param on_done].

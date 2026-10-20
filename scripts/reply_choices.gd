@@ -1,12 +1,14 @@
 class_name ReplyChoices
 extends PanelContainer
-## A guest's greeting and the replies you can give, low in the HUD. Pick one with the
-## number keys or by clicking it. While it shows, the mouse is free to click with.
+## What a chatty guest said and the replies you can give, low in the HUD, in the guest's
+## shuffled order. Pick one with the number keys or by clicking it. While it shows, the
+## mouse is free to click with.
 
 signal chosen(reply: Guest.Reply)
 
-var _greeting: Label
+var _line: Label
 var _buttons: Array[Button] = []
+var _order: Array[Guest.Reply] = []
 var _freed_mouse := false
 
 
@@ -26,27 +28,28 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 6)
 	add_child(box)
 
-	_greeting = Label.new()
-	_greeting.add_theme_font_size_override("font_size", 22)
-	box.add_child(_greeting)
+	_line = Label.new()
+	_line.add_theme_font_size_override("font_size", 22)
+	box.add_child(_line)
 
-	for r: Guest.Reply in Guest.Reply.values():
+	for i in Guest.Reply.size():
 		var button := Button.new()
-		button.name = "Reply%d" % (r + 1)
+		button.name = "Reply%d" % (i + 1)
 		button.flat = true
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.focus_mode = Control.FOCUS_NONE # keys pick by number, not by focus
 		button.add_theme_font_size_override("font_size", 20)
-		button.pressed.connect(chosen.emit.bind(r))
+		button.pressed.connect(_choose.bind(i))
 		box.add_child(button)
 		_buttons.append(button)
 	hide()
 
 
 func show_for(guest: Guest) -> void:
-	_greeting.text = 'Guest: "%s"' % guest.greeting.line
-	for r in _buttons.size():
-		_buttons[r].text = '%d   "%s"' % [r + 1, guest.reply_line(r)]
+	_line.text = 'Guest: "%s"' % guest.chat.line
+	_order = guest.reply_order.duplicate()
+	for i in _buttons.size():
+		_buttons[i].text = '%d   "%s"' % [i + 1, guest.reply_line(_order[i])]
 	show()
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -63,7 +66,12 @@ func close() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible or not event is InputEventKey or not event.pressed or event.echo:
 		return
-	var r: int = event.physical_keycode - KEY_1
-	if r >= 0 and r < _buttons.size():
+	var i: int = event.physical_keycode - KEY_1
+	if i >= 0 and i < _buttons.size():
 		get_viewport().set_input_as_handled()
-		chosen.emit(r)
+		_choose(i)
+
+
+## Picks the reply listed at [param i] (0 is the top one).
+func _choose(i: int) -> void:
+	chosen.emit(_order[i])

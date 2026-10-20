@@ -48,7 +48,7 @@ func _ready() -> void:
 	_build_hud()
 	elevator.hint.connect(_show_hint)
 	guests.said.connect(_show_hint)
-	guests.greeted.connect(_replies.show_for)
+	guests.chatting.connect(_replies.show_for)
 	guests.reply_closed.connect(_replies.close)
 	_replies.chosen.connect(guests.reply)
 	_shift.announced.connect(_show_hint)
