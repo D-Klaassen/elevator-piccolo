@@ -134,10 +134,11 @@ func _refresh() -> void:
 	_balance.text = "Bank balance: €%.2f" % _career.balance
 	for upgrade in Upgrades.CATALOGUE:
 		var row: Dictionary = _rows[upgrade.id]
+		var buy: Button = row.buy
+		buy.get_parent().visible = Upgrades.is_sold_at(upgrade.id, _career.hotel)
 		var l := _career.level(upgrade.id)
 		var top := Upgrades.max_level(upgrade.id)
 		row.level.text = "%s   level %d of %d" % [upgrade.name, l, top]
-		var buy: Button = row.buy
 		if l >= top:
 			row.next.text = "Fully upgraded"
 			buy.text = "Done"

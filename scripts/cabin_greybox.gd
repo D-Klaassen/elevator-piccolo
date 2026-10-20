@@ -45,6 +45,8 @@ func _ready() -> void:
 	guests.name = "Guests"
 	guests.elevator = elevator
 	guests.capacity = elevator.capacity
+	guests.spanish_share = hotel.spanish
+	guests.spanish_lessons = _career.level(Upgrades.SPANISH)
 	guests.ride_patience_scale = Upgrades.RIDE_PATIENCE[elevator.music_level] * hotel.ride_patience
 	add_child(guests)
 
@@ -130,7 +132,9 @@ func _build_landing(f: int) -> void:
 	Greybox.box(self, Vector3(HALL_WIDTH, wall_h, 0.1), Vector3(0, y + wall_h / 2, back), wall_color)
 
 	# Floor sign on the back wall, facing the elevator (-Z).
-	var sign_label := Greybox.label(self, "Floor %d" % f, Vector3(0, y + 2.0, back - 0.06), 180.0, 96)
+	var places: Array = _career.hotel_info().places
+	var sign_text := "Floor %d" % f if places.is_empty() else "Floor %d · %s" % [f, places[f]]
+	var sign_label := Greybox.label(self, sign_text, Vector3(0, y + 2.0, back - 0.06), 180.0, 96 if places.is_empty() else 72)
 	sign_label.modulate = Color(0.2, 0.15, 0.1)
 
 	var light := OmniLight3D.new()
