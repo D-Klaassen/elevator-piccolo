@@ -1,6 +1,6 @@
 extends "res://tests/scene_test.gd"
 ## Headless scripted test of how guests look and move: a Kenney character each, walking to
-## the cab, standing idle while they wait, gesturing when they tell you their floor, nodding
+## the cab, standing idle while they wait, waving when they tell you their floor, nodding
 ## when they thank you and shaking their head when they give up.
 ##
 ## Run: tests/run.sh guest_model_test
@@ -45,7 +45,7 @@ func _test_animations() -> void:
 	_check(await _wait_until(func() -> bool: return g.state == Guest.State.WAITING), "and waits there")
 	_check(g.animation == Guest.IDLE, "standing idle")
 	g.press()
-	_check(g.animation == Guest.GESTURE, "clicking them makes them gesture as they say their floor")
+	_check(g.animation == Guest.WAVE, "clicking them makes them wave as they say their floor")
 	_check(await _wait_until(func() -> bool: return g.animation == Guest.IDLE), "and then they stand idle again")
 
 	await _ride_to(1)

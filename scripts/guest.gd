@@ -1,8 +1,10 @@
 class_name Guest
 extends StaticBody3D
 ## A guest, one of Kenney's Mini Characters. Waits in the hallway, rides the cab and walks
-## out on their floor. They walk and stand idle, nod when they thank you, shake their head
-## when they give up and gesture when they tell you where they're going. Look at them and click to hear which floor they want. Some guests strike
+## out on their floor. They walk and stand idle, wave when you talk to them, nod when they
+## thank you and shake their head when they give up; a Spanish guest may point, hold up
+## fingers or mime where they're going ([Gestures]). Look at them and click to hear which
+## floor they want. Some guests strike
 ## up a chat during the ride and wait for your reply. A red "!" above their head means
 ## they're running out of patience. Whatever a guest says shows in a speech bubble above
 ## their head; for a Spanish guest, with what you understood underneath.
@@ -47,7 +49,7 @@ const IDLE := "idle"
 const WALK := "walk"
 const NOD := "emote-yes"
 const HEAD_SHAKE := "emote-no"
-const GESTURE := "interact-right"
+const WAVE := Gestures.WAVE
 
 const LINES: Array[String] = [
 	"Floor %d, please.",
@@ -138,6 +140,7 @@ var animation := ""
 
 var _tween: Tween
 var _animations: AnimationPlayer
+var _skeleton: Skeleton3D
 var _loop := IDLE
 var _one_off := false
 var _marker: Label3D
@@ -163,6 +166,8 @@ func setup(p_home_floor: int, p_destination: int, p_model: String, line_template
 	for loop: String in [IDLE, WALK]:
 		_animations.get_animation(loop).loop_mode = Animation.LOOP_LINEAR
 	_animations.animation_finished.connect(_on_animation_finished)
+	Gestures.setup(_animations)
+	_skeleton = body.find_children("*", "Skeleton3D", true, false)[0]
 	_play_loop(IDLE)
 
 	var shape := CollisionShape3D.new()
@@ -200,6 +205,7 @@ func setup(p_home_floor: int, p_destination: int, p_model: String, line_template
 
 func _process(_delta: float) -> void:
 	_marker.visible = is_impatient()
+	Gestures.keep_upright(_skeleton)
 
 
 func is_impatient() -> bool:
@@ -215,7 +221,7 @@ func press() -> void:
 	asked += 1
 	if language == "en":
 		say(line)
-	act(GESTURE)
+	act(WAVE)
 	talked_to.emit()
 
 
@@ -268,11 +274,15 @@ func walk(points: Array[Vector3], on_done := Callable(), delay := 0.0) -> void:
 		_tween.tween_callback(on_done)
 
 
-## Plays [param one_off] (one of [constant NOD], [constant HEAD_SHAKE] or [constant GESTURE])
-## once, then goes back to standing or walking.
+## Plays [param one_off] ([constant NOD], [constant HEAD_SHAKE] or one of [Gestures]) once,
+## then goes back to standing or walking. Gestures are for standing still: a guest who's
+## walking doesn't start one, and one who starts walking stops theirs.
 func act(one_off: String) -> void:
+	if Gestures.is_gesture(one_off) and _loop == WALK:
+		return
 	_one_off = true
 	animation = one_off
+	Gestures.show_props(_skeleton, one_off)
 	_animations.play(one_off)
 
 
@@ -280,14 +290,21 @@ func act(one_off: String) -> void:
 func _play_loop(loop: String) -> void:
 	_loop = loop
 	if _one_off:
-		return
+		if loop != WALK or not Gestures.is_gesture(animation):
+			return
+		_end_one_off()
 	animation = loop
 	_animations.play(loop)
 
 
 func _on_animation_finished(_name: StringName) -> void:
-	_one_off = false
+	_end_one_off()
 	_play_loop(_loop)
+
+
+func _end_one_off() -> void:
+	_one_off = false
+	Gestures.show_props(_skeleton, "")
 
 
 ## Turns to look at [param target] (a global position), staying upright.

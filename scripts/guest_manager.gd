@@ -171,15 +171,20 @@ func _on_talked_to(guest: Guest) -> void:
 	var text: String = heard.heard
 	if rng.randf() < help.clue:
 		text += "  %s %s" % [Spanish.MISS, Spanish.CLUES[guest.destination].pick_random()]
-	var gesture := ""
+	# What they show you, if anything: [what you see, their gesture].
+	var d := guest.destination
+	var shown := []
 	if again and guest.helpfulness == "helpful":
-		gesture = Spanish.FINGERS[guest.destination]
+		shown = [Spanish.FINGERS[d], Gestures.fingers(d)]
 	elif rng.randf() < help.gesture:
-		var mime := Spanish.MIMES[guest.destination]
-		gesture = mime if mime and rng.randf() >= 0.3 else Spanish.FINGERS[guest.destination]
+		if Spanish.MIMES[d] and rng.randf() >= 0.3:
+			shown = [Spanish.MIMES[d], Spanish.MIME_GESTURES[d]]
+		else:
+			shown = [Spanish.FINGERS[d], Gestures.fingers(d)]
 	var under: String = heard.understood
-	if gesture:
-		under += ("\n" if under else "") + "(%s)" % gesture
+	if shown:
+		under += ("\n" if under else "") + "(%s)" % shown[0]
+		guest.act(shown[1])
 	guest.say(text, under)
 
 
