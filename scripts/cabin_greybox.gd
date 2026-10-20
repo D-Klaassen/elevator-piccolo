@@ -1,6 +1,7 @@
 extends Node3D
 ## Greybox of the rustic cabin: a 3-floor shaft with a hallway on every floor,
 ## the elevator cab, the player standing inside it, the guests, the shift and a minimal HUD.
+## Every shift loads the saved career and saves it again once the shift is over.
 
 const FLOORS := 3
 const HALL_WIDTH := 6.0
@@ -16,9 +17,11 @@ var _report: ShiftReport
 var _replies: ReplyChoices
 var _hint_timer: SceneTreeTimer
 var _shift: Shift
+var _career: Career
 
 
 func _ready() -> void:
+	_career = Career.load_saved()
 	_build_environment()
 	_build_shaft()
 	for f in FLOORS:
@@ -176,7 +179,7 @@ func _build_hud() -> void:
 
 	_report = ShiftReport.new()
 	_report.name = "ShiftReport"
-	_report.play_again.connect(_on_play_again)
+	_report.continued.connect(_on_continued)
 	hud.add_child(_report)
 
 
@@ -201,10 +204,16 @@ func _on_shift_ended() -> void:
 	_crosshair.hide()
 	_looking_label.text = ""
 	_hint_label.text = ""
-	_report.show_for(_shift)
+	_career.record(_shift)
+	var error := _career.save()
+	if error != OK:
+		push_error("Couldn't save the career to %s: %s" % [Career.save_path, error_string(error)])
+	_report.show_for(_shift, _career)
 
 
-func _on_play_again() -> void:
+## The next shift, or the same one again after being fired: either way a fresh scene
+## that picks the career up from the save.
+func _on_continued() -> void:
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 

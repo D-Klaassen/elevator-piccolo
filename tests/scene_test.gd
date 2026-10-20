@@ -1,6 +1,7 @@
 extends SceneTree
 ## Base for headless scripted tests: loads the cabin scene and drives the cab through
 ## its own buttons, the way a player would. Tests extend this and override [method _run].
+## The career is saved to a temporary file, never to the player's real save.
 
 var _failures := 0
 var _last_said := ""
@@ -20,9 +21,12 @@ func _initialize() -> void:
 
 
 func _start() -> void:
+	Career.save_path = OS.get_temp_dir().path_join("elevator-piccolo-%s-%d.cfg" % [_name(), OS.get_process_id()])
+	DirAccess.remove_absolute(Career.save_path)
 	_load_scene(load("res://scenes/cabin_greybox.tscn").instantiate())
 	await physics_frame
 	await _run()
+	DirAccess.remove_absolute(Career.save_path)
 	print("%s: %s" % [_name(), "PASS" if _failures == 0 else "%d FAILED" % _failures])
 	quit(1 if _failures else 0)
 
