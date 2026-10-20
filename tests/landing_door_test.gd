@@ -79,7 +79,19 @@ func _test_doors_follow_the_cab() -> void:
 	_check(not _landing_open(0), "closing the cab's doors closes the landing doors too")
 	_check(_blocked(0), "and they block the way into the shaft")
 	var chimes := _elevator.chimes
-	await _ride_to(1)
+	var displays := _elevator.floor_displays()
+	_check(displays.size() == 1 + _elevator.floor_count, "a floor display over the cab's door and over every landing door")
+	_check(displays.all(func(d: FloorDisplay) -> bool: return d.shown_floor() == "0" and d.shown_direction() == 0), "they all show floor 0, no arrow lit")
+	_press("1")
+	_press("close")
+	await _wait_until(func() -> bool: return _elevator._moving)
+	await process_frame
+	_check(displays.all(func(d: FloorDisplay) -> bool: return d.shown_direction() == 1), "on the way up, the up arrows light")
+	await _wait_until(func() -> bool: return _elevator.current_floor == 1 and not _elevator._moving)
+	await process_frame
+	_check(displays.all(func(d: FloorDisplay) -> bool: return d.shown_floor() == "1" and d.shown_direction() == 0), "arrived, they show floor 1 and the arrow goes out")
+	_press("open")
+	await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
 	_check(_elevator.chimes == chimes + 1, "arriving on the way up, the chime rings once")
 	_check(_landing_open(1) and not _landing_open(0), "on floor 1 its landing doors open with the cab's, the ground floor's stay shut")
 	_check(not _blocked(1) and _blocked(0), "so you can step out on floor 1 but not into the shaft on floor 0")

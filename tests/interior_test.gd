@@ -114,7 +114,8 @@ func _test_cab() -> void:
 		if not (flat_on_wall or overhead):
 			_check(false, "cab trim at %s is flat against a wall or overhead" % box.get_center())
 		var in_doorway := box.end.z > front + 0.001 # between the front walls, where the doors slide
-		if in_doorway and box.position.y < Elevator.DOOR_HEIGHT:
+		var threshold := box.end.y < 0.01 # the strip on the floor the doors run in
+		if in_doorway and box.position.y < Elevator.DOOR_HEIGHT and not threshold:
 			_check(false, "cab trim at %s is clear of the doors" % box.get_center())
 		if is_equal_approx(box.get_center().y, Interior.HANDRAIL_HEIGHT) and maxf(box.size.x, box.size.z) > 1.0:
 			rails += 1
