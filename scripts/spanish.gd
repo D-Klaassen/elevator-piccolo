@@ -30,9 +30,13 @@ const CLUES: Array[Array] = [
 ]
 ## Per floor: what a guest mimes, or "" when there is nothing to mime.
 const MIMES: Array[String] = [
-	"shows their suitcase", "", "", "mimes eating", "mimes swimming", "rubs their shoulders", "mimes drinking",
+	"shows their suitcase", "", "", "mimes eating", "mimes swimming", "rubs their shoulder", "mimes drinking",
 ]
-## Per floor: what a guest shows with their hands.
+## Per floor: the [Gestures] animation for the mime in [constant MIMES].
+const MIME_GESTURES: Array[String] = [
+	Gestures.SUITCASE, "", "", Gestures.EATING, Gestures.SWIMMING, Gestures.SHOULDER, Gestures.DRINKING,
+]
+## Per floor: what a guest shows with their hands ([method Gestures.fingers] acts it out).
 const FINGERS: Array[String] = [
 	"points down", "holds up one finger", "holds up two fingers", "holds up three fingers",
 	"holds up four fingers", "holds up five fingers", "holds up six fingers",
