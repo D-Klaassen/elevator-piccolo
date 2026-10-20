@@ -100,8 +100,8 @@ func _test_bellevue() -> void:
 	_check(g.bubble_text() != "" and _last_said == "", "they answer in a speech bubble (%s)" % g.bubble_text())
 	_check(not g.bubble_text().contains("4") and not g.bubble_text().to_lower().contains("pool"), "and it doesn't give the floor away")
 	_check(g.under_text() == "", "without lessons there's nothing underneath")
-	_check(g.language_tag_text() == "Spanish", "the bubble says they speak Spanish (%s)" % g.language_tag_text())
-	await _check_tag_at_top_right(g)
+	_check(g.language_badge() == "ES", "a badge on the bubble says they speak Spanish (%s)" % g.language_badge())
+	_check_badge_at_top_right(g)
 
 	var waited := g.waited
 	g.press()
@@ -117,11 +117,10 @@ func _test_bellevue() -> void:
 	english.language = "en"
 	english.press()
 	_check(english.bubble_text().to_lower().contains("floor 6") and english.under_text() == "", "English guests name their floor in a bubble too, with nothing underneath")
-	_check(english.language_tag_text() == "English", "and their bubble says English")
-	await _check_tag_at_top_right(english)
-	var tag := english.find_child("Language", false, false) as Label3D
+	_check(english.language_badge() == "EN", "and their badge says English (%s)" % english.language_badge())
+	_check_badge_at_top_right(english)
 	english._hide_bubble(english._bubble_timer)
-	_check(english.language_tag_text() == "" and not tag.visible, "the language goes with the bubble")
+	_check(english.language_badge() == "", "the badge goes with the bubble")
 
 	# The staff room at Bellevue sells the lessons.
 	_shift.minutes = Shift.END - 0.1
@@ -142,28 +141,15 @@ func _test_bellevue() -> void:
 	_check(row_text.contains("Spanish lessons   level 1 of 5") and row_text.contains("Next: Lesson 2: common verbs"), "the next lesson is common verbs")
 
 
-## The language sits a little above the top right corner of [param g]'s bubble text,
-## right-aligned with it, however long the line. Measured on the text as it's drawn.
-func _check_tag_at_top_right(g: Guest) -> void:
-	var bubble := g.find_child("Bubble", false, false) as Label3D
-	var tag := g.find_child("Language", false, false) as Label3D
-	_check(tag.visible == bubble.visible, "and shows when the bubble does")
-	var text_box := await _drawn(bubble)
-	var tag_box := await _drawn(tag)
-	var gap := tag_box.position.y - text_box.end.y
-	var edges := absf(tag_box.end.x - text_box.end.x)
-	_check(gap > 5.0 and gap < 30.0 and edges < 3.0, "with a little space above the top right corner of the bubble (gap %.0f px, right edges %.0f px apart)" % [gap, edges])
-
-
-## Where [param label]'s text is drawn, in pixels from its position (y up). A billboard's
-## bounds cover every way it could turn, so this measures it facing straight on.
-func _drawn(label: Label3D) -> Rect2:
-	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	await process_frame
-	var box := label.get_aabb()
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	var px := label.pixel_size
-	return Rect2(box.position.x / px, box.position.y / px, box.size.x / px, box.size.y / px)
+## The language badge sits across the top border of [param g]'s bubble, a little in
+## from its right corner, inside the bubble's picture.
+func _check_badge_at_top_right(g: Guest) -> void:
+	var layout := (g.find_child("SpeechBubble", false, false) as SpeechBubble).layout()
+	var box := layout[0]
+	var badge := layout[1]
+	var inset := box.end.x - badge.end.x
+	_check(inset > 5.0 and inset < 30.0, "at the top right corner, a little in from it (%.0f px)" % inset)
+	_check(badge.position.y >= 0.0 and badge.position.y < box.position.y and badge.end.y > box.position.y, "across the bubble's top border")
 
 
 ## A seed for which [param condition] holds on a fresh generator.

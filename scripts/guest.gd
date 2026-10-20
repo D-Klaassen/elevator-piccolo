@@ -7,7 +7,7 @@ extends StaticBody3D
 ## floor they want. Some guests strike
 ## up a chat during the ride and wait for your reply. A red "!" above their head means
 ## they're running out of patience. Whatever a guest says shows in a speech bubble that comes
-## out of their mouth, with the language they speak at its top right; for a Spanish guest,
+## out of their mouth, with their language on a badge at its top right; for a Spanish guest,
 ## with what you understood underneath.
 
 signal talked_to ## the player clicked them; a Spanish guest's answer is up to the [GuestManager]
@@ -29,11 +29,7 @@ const HEIGHT := 1.35 ## the top of their head, at [constant MODEL_SCALE]
 ## Physics layer value for guests: the player's look ray sees them, the player's body walks through them.
 const COLLISION_LAYER := 2
 const BUBBLE_TIME := 6.0 ## seconds a speech bubble stays up
-const MOUTH_HEIGHT := 1.05 ## where a speech bubble comes out, at [constant MODEL_SCALE]
-const BUBBLE_SIDE := 40.0 ## pixels a speech bubble starts beside the mouth, so it doesn't cover the face
-const LANGUAGE_GAP := 14.0 ## pixels between the top of a speech bubble and the language it's in
-## The name of each language, shown at the top right of a guest's speech bubble.
-const LANGUAGE_NAMES := {"en": "English", "es": "Spanish"}
+const MOUTH_HEIGHT := 0.65 ## where a speech bubble comes out, at [constant MODEL_SCALE]
 
 const MODELS: Array[String] = [
 	"res://assets/kenney/mini-characters/character-female-a.glb",
@@ -150,9 +146,7 @@ var _skeleton: Skeleton3D
 var _loop := IDLE
 var _one_off := false
 var _marker: Label3D
-var _bubble: Label3D
-var _under: Label3D
-var _language_tag: Label3D
+var _bubble: SpeechBubble
 var _bubble_timer: SceneTreeTimer
 var _speaking := false ## a bubble is up, whether or not you can see the guest right now
 
@@ -192,45 +186,16 @@ func setup(p_home_floor: int, p_destination: int, p_model: String, line_template
 	_marker.outline_size = 12
 	_marker.hide()
 
-	# Both come out of the mouth sideways, the line above it and what you understood below,
-	# and draw over the walls, so you see them at eye level wherever the guest stands.
-	_bubble = _speech_label("Bubble", 36, 10, VERTICAL_ALIGNMENT_BOTTOM)
-	_under = _speech_label("Understood", 26, 8, VERTICAL_ALIGNMENT_TOP)
-	_under.modulate = Color(1, 0.85, 0.4)
-	# The language they speak, small, just above the bubble's top right corner.
-	_language_tag = _speech_label("Language", 22, 6, VERTICAL_ALIGNMENT_CENTER)
-	_language_tag.autowrap_mode = TextServer.AUTOWRAP_OFF
-	_language_tag.width = 0.0
-	_language_tag.modulate = Color(0.7, 0.85, 1.0)
-	_bubble.hide()
-	_under.hide()
-	_language_tag.hide()
-
-
-func _speech_label(label_name: String, font_size: int, outline: int, valign: VerticalAlignment) -> Label3D:
-	var l := Greybox.label(self, "", Vector3(0, MOUTH_HEIGHT, 0), 0.0, font_size)
-	l.name = label_name
-	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	l.no_depth_test = true
-	l.render_priority = 1
-	l.outline_render_priority = 0
-	l.outline_size = outline
-	l.width = 400.0
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	l.vertical_alignment = valign
-	l.offset = Vector2(BUBBLE_SIDE + l.width / 2, 0)
-	return l
+	_bubble = SpeechBubble.new()
+	_bubble.position.y = MOUTH_HEIGHT
+	add_child(_bubble)
 
 
 func _process(_delta: float) -> void:
 	_marker.visible = is_impatient()
 	Gestures.keep_upright(_skeleton)
 	# The bubble draws over the walls, so hide it while a wall or a door is in between.
-	var in_view := _speaking and _in_view()
-	_bubble.visible = in_view
-	_under.visible = in_view and not _under.text.is_empty()
-	_language_tag.visible = in_view
+	_bubble.visible = _speaking and _in_view()
 
 
 ## True when nothing solid is between the camera and their mouth.
@@ -261,16 +226,11 @@ func press() -> void:
 
 
 ## Shows [param text] in a speech bubble from their mouth, with [param under] (what you
-## understood, and what they do) beneath it and the language they speak above it, for
-## [constant BUBBLE_TIME] seconds.
+## understood, and what they do) beneath it, for [constant BUBBLE_TIME] seconds.
 func say(text: String, under := "") -> void:
-	_bubble.text = text
-	_under.text = under
-	_place_language_tag()
+	_bubble.set_lines(text, under, language)
 	_speaking = true
 	_bubble.visible = _in_view()
-	_under.visible = _bubble.visible and not under.is_empty()
-	_language_tag.visible = _bubble.visible
 	_bubble_timer = get_tree().create_timer(BUBBLE_TIME, false)
 	# A connection, not an await: it goes away with the guest if they leave first.
 	_bubble_timer.timeout.connect(_hide_bubble.bind(_bubble_timer))
@@ -281,33 +241,18 @@ func _hide_bubble(timer: SceneTreeTimer) -> void:
 	if timer == _bubble_timer:
 		_speaking = false
 		_bubble.hide()
-		_under.hide()
-		_language_tag.hide()
 
 
 func bubble_text() -> String:
-	return _bubble.text if _speaking else ""
+	return _bubble.text() if _speaking else ""
 
 
 func under_text() -> String:
-	return _under.text if _speaking else ""
+	return _bubble.under_text() if _speaking else ""
 
 
-func language_tag_text() -> String:
-	return _language_tag.text if _speaking else ""
-
-
-## Puts the language tag a little above the top right corner of the bubble's text: the
-## bubble grows up from the mouth, so that corner depends on how long the line is.
-func _place_language_tag() -> void:
-	_language_tag.text = LANGUAGE_NAMES.get(language, language)
-	var font: Font = _bubble.font if _bubble.font else ThemeDB.fallback_font
-	# Wrapped the way the bubble wraps it, without the space at the end of a wrapped line.
-	var wrap := TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE | TextServer.BREAK_TRIM_EDGE_SPACES
-	var text := font.get_multiline_string_size(_bubble.text, HORIZONTAL_ALIGNMENT_LEFT, _bubble.width, _bubble.font_size, -1, wrap)
-	var tag := font.get_string_size(_language_tag.text, HORIZONTAL_ALIGNMENT_LEFT, -1, _language_tag.font_size)
-	# Left-aligned labels start at their offset.
-	_language_tag.offset = Vector2(_bubble.offset.x + text.x - tag.x, text.y + LANGUAGE_GAP + tag.y / 2)
+func language_badge() -> String:
+	return _bubble.language_badge() if _speaking else ""
 
 
 func reply_line(r: Reply) -> String:
