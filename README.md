@@ -47,3 +47,27 @@ tests/run.sh shift_test
 ```
 
 Each test prints one line per check and ends with `<name>: PASS` or `<name>: <n> FAILED`. A script or engine error during the run also counts as a failed check, even if the test carries on past it. Warnings are printed but do not fail the test. The runner also fails a test that exits with 0 but prints no `PASS` line. That happens when the test script can't load, for example on a parse error: Godot prints the error and exits with 0 without running a check. On a fresh clone, run `godot --headless --path . --import` once before the first test run.
+
+## Builds
+
+`export_presets.cfg` has a preset per platform; `tools/build.sh` exports them into `build/` (ignored by git):
+
+| Preset | Output | Notes |
+|---|---|---|
+| Windows | `build/windows/ElevatorPiccolo.exe` | x86_64, one file with the game packed in |
+| macOS | `build/macos/ElevatorPiccolo.zip` | the `.app`, universal (Intel and Apple Silicon), signed ad hoc and not notarized: on another Mac, right-click > Open the first time |
+| Linux | `build/linux/ElevatorPiccolo.x86_64` | x86_64, one file; this is the build for the Steam Deck |
+
+The tests are left out of every build. Building needs Godot's export templates for the editor's version, once per machine: in the editor, **Editor > Manage Export Templates > Download and Install** (about 1.3 GB). Then:
+
+```bash
+tools/build.sh
+```
+
+Or build one or more by preset name:
+
+```bash
+tools/build.sh Linux
+```
+
+To try the Linux build on a Steam Deck, copy the file over (for example to `~/Games/`), mark it executable, and add it in Desktop Mode with **Add a Non-Steam Game to My Library** to play it in Game Mode with the controller. Code signing for macOS (an Apple Developer account) and Steam builds come later.
