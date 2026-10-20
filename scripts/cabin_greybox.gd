@@ -152,7 +152,7 @@ func _build_hud() -> void:
 	hud.add_child(_hint_label)
 
 	var help := Label.new()
-	help.text = "WASD walk · mouse look · click a button or a guest · 1-3 or click to reply · Esc frees the mouse"
+	help.text = "WASD walk · mouse look · click a button or a guest · Esc frees the mouse"
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	help.position += Vector2(16, -32)
 	help.modulate = Color(1, 1, 1, 0.6)
