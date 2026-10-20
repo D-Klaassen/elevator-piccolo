@@ -8,7 +8,8 @@ class_name Hotels
 ## of them in the lunch rush; [code]pay[/code] multiplies fares and tips;
 ## [code]prices[/code] multiplies the upgrade catalogue; [code]ride_patience[/code]
 ## multiplies how long guests put up with a ride, as a taller shaft means longer rides;
-## [code]fee[/code] is the application fee to move in.
+## [code]fee[/code] is the application fee to move in; [code]spanish[/code] is the share of
+## guests who speak Spanish; [code]places[/code] names what is on each floor, or is empty.
 
 const UNLOCK_STARS := 4.0
 
@@ -23,6 +24,8 @@ const LADDER: Array[Dictionary] = [
 		"prices": 0.5,
 		"ride_patience": 1.0,
 		"fee": 0.0,
+		"spanish": 0.0,
+		"places": [],
 	},
 	{
 		"id": "bellevue",
@@ -34,6 +37,8 @@ const LADDER: Array[Dictionary] = [
 		"prices": 1.0,
 		"ride_patience": 1.5,
 		"fee": 150.0,
+		"spanish": 0.6,
+		"places": ["Lobby", "Rooms", "Rooms", "Restaurant", "Pool", "Spa", "Rooftop bar"],
 	},
 ]
 

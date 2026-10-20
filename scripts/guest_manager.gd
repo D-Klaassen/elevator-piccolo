@@ -3,7 +3,9 @@ extends Node3D
 ## Spawns guests on random floors, lights the call panel, and walks guests in and out
 ## of the cab whenever its doors stand open on their floor. Guests who wait too long give up.
 ## Now and then a riding guest strikes up a chat and waits a moment for your [method reply].
-## When guests turn up is up to the [Shift].
+## When guests turn up is up to the [Shift]. Some guests speak Spanish: click them and they
+## answer in a speech bubble, as much of it as your lessons let you catch. Clicking again
+## asks "Sorry, again?", which costs them patience.
 
 signal said(text: String)
 signal delivered(guest: Guest)
@@ -27,6 +29,7 @@ const HALL_END_Z := 4.4 ## where guests come from and go to
 const REPLY_TIME := 10.0 ## seconds a guest waits for your reply; no reply counts as neutral
 const CHAT_DELAY_MIN := 3.0 ## seconds after they start boarding before a chatty guest speaks up
 const CHAT_DELAY_MAX := 6.0
+const AGAIN_COST := 5.0 ## seconds of patience it costs a guest to say it again
 
 ## Multiplies every guest's patience, both waiting and riding.
 @export var patience_scale := 1.0
@@ -36,6 +39,10 @@ const CHAT_DELAY_MAX := 6.0
 @export var capacity := 3
 ## Share of guests who strike up a chat during the ride. Off for now: answering felt clunky.
 @export var chat_chance := 0.0
+## Share of guests who speak Spanish. Only for floors [constant Spanish.LINES] has lines for.
+@export var spanish_share := 0.0
+## Spanish lessons taken: how much of a Spanish guest you catch.
+@export var spanish_lessons := 0
 
 var elevator: Elevator
 var rng := RandomNumberGenerator.new()
@@ -110,6 +117,11 @@ func spawn_guest(home: int, destination: int) -> Guest:
 		return null
 	var guest := Guest.new()
 	guest.setup(home, destination, Color.from_hsv(rng.randf(), 0.45, 0.85), Guest.LINES.pick_random())
+	if destination < Spanish.LINES.size() and rng.randf() < spanish_share:
+		guest.language = "es"
+		guest.helpfulness = Spanish.HELPFULNESS.keys()[rng.randi_range(0, Spanish.HELPFULNESS.size() - 1)]
+		guest.spanish_line = Spanish.LINES[destination][rng.randi_range(0, 1)]
+		guest.display_name = "Spanish guest (click to talk)"
 	if rng.randf() < chat_chance:
 		guest.chat = Guest.CHATS.pick_random()
 		guest.chat_at = rng.randf_range(CHAT_DELAY_MIN, CHAT_DELAY_MAX)
@@ -123,6 +135,7 @@ func spawn_guest(home: int, destination: int) -> Guest:
 	var y := _floor_y(home)
 	guest.global_position = Vector3(_random_side(), y, HALL_END_Z)
 	guest.spoke.connect(func(text: String) -> void: said.emit('Guest: "%s"' % text))
+	guest.talked_to.connect(_on_talked_to.bind(guest))
 	_guests.append(guest)
 
 	var wait_at := WAIT_SPOTS[spot] + Vector3(0, y, 0)
@@ -130,6 +143,36 @@ func spawn_guest(home: int, destination: int) -> Guest:
 	_update_calls()
 	elevator.ding()
 	return guest
+
+
+## A Spanish guest answers in a speech bubble: what you catch of their line, now and then an
+## English clue word, and maybe a gesture. Asking again costs them patience, and a helpful
+## guest then shows it on their fingers.
+func _on_talked_to(guest: Guest) -> void:
+	if guest.language != "es":
+		return
+	var again := guest.asked > 1
+	if again:
+		said.emit('You: "Sorry, again?"')
+		if _is_calling(guest):
+			guest.waited += AGAIN_COST
+		elif _is_aboard(guest):
+			guest.rode += AGAIN_COST
+	var help: Dictionary = Spanish.HELPFULNESS[guest.helpfulness]
+	var heard := Spanish.hear(guest.spanish_line, spanish_lessons, rng)
+	var text: String = heard.heard
+	if rng.randf() < help.clue:
+		text += "  %s %s" % [Spanish.MISS, Spanish.CLUES[guest.destination].pick_random()]
+	var gesture := ""
+	if again and guest.helpfulness == "helpful":
+		gesture = Spanish.FINGERS[guest.destination]
+	elif rng.randf() < help.gesture:
+		var mime := Spanish.MIMES[guest.destination]
+		gesture = mime if mime and rng.randf() >= 0.3 else Spanish.FINGERS[guest.destination]
+	var under: String = heard.understood
+	if gesture:
+		under += ("\n" if under else "") + "(%s)" % gesture
+	guest.say(text, under)
 
 
 func _on_waiting(guest: Guest) -> void:

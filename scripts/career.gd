@@ -80,7 +80,7 @@ func next_price(id: String) -> float:
 
 func can_buy(id: String) -> bool:
 	var price := next_price(id)
-	return price >= 0.0 and balance >= price
+	return Upgrades.is_sold_at(id, hotel) and price >= 0.0 and balance >= price
 
 
 ## Pays for the next level of [param id]. Returns false, and changes nothing, when it is

@@ -3,9 +3,11 @@ extends StaticBody3D
 ## A capsule placeholder guest. Waits in the hallway, rides the cab and walks out on
 ## their floor. Look at them and click to hear which floor they want. Some guests strike
 ## up a chat during the ride and wait for your reply. A red "!" above their head means
-## they're running out of patience.
+## they're running out of patience. Spanish guests answer in a speech bubble above their
+## head, with what you understood underneath.
 
 signal spoke(text: String)
+signal talked_to ## the player clicked them; a Spanish guest's answer is up to the [GuestManager]
 
 enum State { ARRIVING, WAITING, BOARDING, RIDING, LEAVING }
 ## How well your reply to their chat lands with them.
@@ -23,6 +25,7 @@ const RADIUS := 0.25
 const HEIGHT := 1.7
 ## Physics layer value for guests: the player's look ray sees them, the player's body walks through them.
 const COLLISION_LAYER := 2
+const BUBBLE_TIME := 6.0 ## seconds a speech bubble stays up
 
 const LINES: Array[String] = [
 	"Floor %d, please.",
@@ -89,7 +92,11 @@ var destination := 0
 var state := State.ARRIVING
 var wait_spot := -1 ## index of the hallway spot while arriving or waiting
 var cab_slot := -1 ## index of the spot in the cab while boarding or riding
-var line := ""
+var line := "" ## what an English guest says when you click them
+var language := "en" ## "en" or "es"
+var helpfulness := "" ## for a Spanish guest: a key of [constant Spanish.HELPFULNESS]
+var spanish_line: Array = [] ## for a Spanish guest: [Spanish, English] from [constant Spanish.LINES]
+var asked := 0 ## how often you clicked them
 var chat := {} ## one of [constant CHATS], or empty for a quiet guest
 var chat_at := 0.0 ## seconds into the ride when they start their chat
 var chatted := false ## started their chat (they may still be waiting for your reply)
@@ -105,6 +112,9 @@ var fed_up := false ## ran out of ride patience: gets out at the next open doors
 
 var _tween: Tween
 var _marker: Label3D
+var _bubble: Label3D
+var _under: Label3D
+var _bubble_timer: SceneTreeTimer
 
 
 func setup(p_home_floor: int, p_destination: int, color: Color, line_template: String) -> void:
@@ -140,6 +150,24 @@ func setup(p_home_floor: int, p_destination: int, color: Color, line_template: S
 	_marker.outline_size = 12
 	_marker.hide()
 
+	_bubble = Greybox.label(self, "", Vector3(0, HEIGHT + 0.75, 0), 0.0, 36)
+	_bubble.name = "Bubble"
+	_bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_bubble.outline_size = 10
+	_bubble.width = 600.0
+	_bubble.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_bubble.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_under = Greybox.label(self, "", Vector3(0, HEIGHT + 0.7, 0), 0.0, 26)
+	_under.name = "Understood"
+	_under.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_under.modulate = Color(1, 0.85, 0.4)
+	_under.outline_size = 8
+	_under.width = 600.0
+	_under.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_under.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_bubble.hide()
+	_under.hide()
+
 
 func _process(_delta: float) -> void:
 	_marker.visible = is_impatient()
@@ -155,7 +183,37 @@ func is_impatient() -> bool:
 
 
 func press() -> void:
-	spoke.emit(line)
+	asked += 1
+	if language == "en":
+		spoke.emit(line)
+	talked_to.emit()
+
+
+## Shows [param text] in a speech bubble above their head, with [param under] (what you
+## understood, and what they do) beneath it, for [constant BUBBLE_TIME] seconds.
+func say(text: String, under: String) -> void:
+	_bubble.text = text
+	_under.text = under
+	_bubble.show()
+	_under.visible = not under.is_empty()
+	_bubble_timer = get_tree().create_timer(BUBBLE_TIME, false)
+	# A connection, not an await: it goes away with the guest if they leave first.
+	_bubble_timer.timeout.connect(_hide_bubble.bind(_bubble_timer))
+
+
+## Hides the bubble, unless a newer one than [param timer]'s replaced it.
+func _hide_bubble(timer: SceneTreeTimer) -> void:
+	if timer == _bubble_timer:
+		_bubble.hide()
+		_under.hide()
+
+
+func bubble_text() -> String:
+	return _bubble.text if _bubble.visible else ""
+
+
+func under_text() -> String:
+	return _under.text if _under.visible else ""
 
 
 func reply_line(r: Reply) -> String:
