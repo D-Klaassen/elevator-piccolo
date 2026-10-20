@@ -13,7 +13,7 @@ h1{font-size:18px}.note{opacity:.7;font-size:13px}
 pre{background:#111;padding:10px;font-size:12px;overflow:auto}.log div{font-size:14px}
 </style></head><body>
 <h1>PROTOTYPE: understanding guests (English known, Spanish not)</h1>
-<p class="note">Throwaway. English guests: you understand everything. Spanish guests speak real Spanish, but you don't catch every word or know how it's spelled, so what you "hear" is a bit off. Grey "…" = a word you missed. Green = English words they mix in: never the floor name, just a clue (\"hungry\", \"water\"). Helpful guests give hints less often and mostly mime; ask them again and they hold up fingers. Spanish lessons (upgrade) teach you words step by step: <span style="color:#7aa2ff">blue words</span> are words you know, with their meaning. You also miss fewer words. After lesson 5 you get full subtitles.</p>
+<p class="note">Throwaway. English guests: you understand everything. Spanish guests speak real Spanish, but you don't catch every word or know how it's spelled, so what you "hear" is a bit off. Grey "…" = a word you missed. Green = English words they mix in: never the floor name, just a clue (\"hungry\", \"water\"). Helpful guests give hints less often and mostly mime; ask them again and they hold up fingers. Spanish lessons (upgrade) teach you words step by step, the useful words come late (small words, verbs, numbers, places): <span style="color:#7aa2ff">blue words</span> are words you know, with their meaning. You also miss fewer words. After lesson 5 you get full subtitles.</p>
 <div class="row">
  <span>Spanish lessons: <button onclick="lesson(-1)">−</button> <b id="lv">0</b>/5 <button onclick="lesson(1)">+ take lesson</button> <span id="lvdesc" class="note"></span></span>
  <label>Spanish guests: <input type="range" id="mix" min="0" max="100" value="60" oninput="S.spanishPct=+this.value;document.getElementById('mixv').textContent=this.value+'%'"> <span id="mixv">60%</span></label>
@@ -53,19 +53,19 @@ let S={lessons:0,spanishPct:60,lang:"en",type:null,floor:0,lineIdx:0,patience:3,
 const pick=a=>a[Math.random()*a.length|0];
 // vocabulary each lesson teaches (lowercase, no accents) -> English meaning
 const LESSONS=[
- {desc:"floors & numbers",words:{primer:"first",segundo:"second",piso:"floor",planta:"floor",baja:"ground",arriba:"up",todo:"all"}},
- {desc:"hotel places",words:{recepcion:"reception",habitacion:"room",restaurante:"restaurant",piscina:"pool",azotea:"rooftop",terraza:"terrace",masaje:"massage"}},
+ {desc:"small words",words:{"por":"for",favor:"please",gracias:"thanks",donde:"where",mi:"my",la:"the",el:"the",al:"to the",a:"to",en:"in",un:"a",una:"a",con:"with",los:"the",del:"of the",me:"me",se:"one",puede:"can",aqui:"here",para:"for",poco:"little",mucha:"much"}},
  {desc:"common verbs",words:{quiero:"I want",voy:"I go",ir:"to go",vamos:"we go",nadar:"swim",cenar:"dine",tomar:"have",relajarme:"relax",tengo:"I have",espera:"waits",esta:"is"}},
- {desc:"small words",words:{"por":"for",favor:"please",gracias:"thanks",donde:"where",mi:"my",la:"the",el:"the",al:"to the",a:"to",en:"in",un:"a",una:"a",con:"with",los:"the",del:"of the",me:"me",se:"one",puede:"can",aqui:"here",para:"for",poco:"little",mucha:"much",hambre:"hunger",ninos:"kids",copa:"drink",cita:"appointment",taxi:"taxi"}},
+ {desc:"floors & numbers",words:{primer:"first",segundo:"second",piso:"floor",planta:"floor",baja:"ground",arriba:"up",todo:"all"}},
+ {desc:"hotel places",words:{recepcion:"reception",habitacion:"room",restaurante:"restaurant",piscina:"pool",azotea:"rooftop",terraza:"terrace",masaje:"massage",hambre:"hunger",ninos:"kids",copa:"drink",cita:"appointment",taxi:"taxi"}},
  {desc:"fluent: full subtitles",words:{}}];
 function norm(w){return w.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[¿¡.,?!]/g,"")}
 function knownMeaning(w){for(let i=0;i<Math.min(S.lessons,4);i++){const m=LESSONS[i].words[norm(w)];if(m)return m}return null}
 function lesson(d){S.lessons=Math.max(0,Math.min(5,S.lessons+d));if(S.lang=="es")hear();draw()}
 // what a non-speaker hears: phonetic spelling, no accents, some words lost
 function mishear(w){
- const m=knownMeaning(w);if(m)return `<span class="known">${w} <small>(${m})</small></span>`;
- const fade=1-S.lessons/5;
+ const fade=1-S.lessons/8;
  if(Math.random()<.25*fade) return '<span class="miss">…</span>';
+ const m=knownMeaning(w);if(m)return `<span class="known">${w} <small>(${m})</small></span>`;
  let p=w.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[¿¡]/g,"");
  if(Math.random()<.6*fade) p=p.replace(/^h/,"").replace(/qu/g,"k").replace(/ll/g,"y").replace(/v/g,"b").replace(/z/g,"s").replace(/j/g,"h").replace(/cion/g,"sion").replace(/ñ/g,"ny");
  return p;
