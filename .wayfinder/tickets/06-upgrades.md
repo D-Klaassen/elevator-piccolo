@@ -2,7 +2,7 @@
 title: Which upgrades exist and what do they cost?
 label: wayfinder:grilling
 status: open
-assignee:
+assignee: D-Klaassen
 blocked_by: []
 ---
 
