@@ -1,14 +1,14 @@
 class_name GuestManager
 extends Node3D
 ## Spawns guests on random floors, lights the call panel, and walks guests in and out
-## of the cab whenever its doors stand open on their floor.
+## of the cab whenever its doors stand open on their floor. Guests who wait too long give up.
+## When guests turn up is up to the [Shift].
 
 signal said(text: String)
-signal served_changed(count: int)
+signal delivered(guest: Guest)
+signal gave_up(guest: Guest)
 
 const MAX_WAITING := 4
-const FIRST_SPAWN := 1.5 ## seconds
-const SPAWN_INTERVAL := Vector2(7.0, 12.0) ## seconds, min and max
 ## Where guests wait in each hallway, relative to the floor (x, 0, z): in view of the open doors.
 const WAIT_SPOTS: Array[Vector3] = [Vector3(-0.55, 0, 2.3), Vector3(0.55, 0, 2.3), Vector3(0, 0, 3.1)]
 ## Where guests stand in the cab, in cab coordinates. One slot per guest, so this is the capacity.
@@ -17,22 +17,27 @@ const LANDING_Z := 1.8 ## just in front of the landing opening
 const CAB_DOOR_Z := 0.5 ## just inside the cab doors
 const HALL_END_Z := 4.4 ## where guests come from and go to
 
-@export var auto_spawn := true
+## Multiplies every guest's patience. Upgrades (music and the like) will raise it.
+@export var patience_scale := 1.0
 
 var elevator: Elevator
-var served := 0
 var rng := RandomNumberGenerator.new()
 
 var _guests: Array[Guest] = []
-var _spawn_timer := FIRST_SPAWN
 
 
 func _process(delta: float) -> void:
-	if auto_spawn:
-		_spawn_timer -= delta
-		if _spawn_timer <= 0.0:
-			_spawn_timer = rng.randf_range(SPAWN_INTERVAL.x, SPAWN_INTERVAL.y)
-			spawn_random()
+	for guest in _guests.duplicate():
+		if _is_calling(guest):
+			guest.waited += delta
+			if guest.waited >= guest.patience:
+				_give_up(guest)
+		elif _is_aboard(guest) and not guest.fed_up:
+			guest.rode += delta
+			if guest.rode >= guest.ride_patience:
+				guest.fed_up = true # they get out at the next open doors
+				gave_up.emit(guest)
+	_update_calls()
 
 	if elevator.is_open_at_rest():
 		_unload_and_load(elevator.current_floor)
@@ -64,6 +69,10 @@ func spawn_guest(home: int, destination: int) -> Guest:
 		return null
 	var guest := Guest.new()
 	guest.setup(home, destination, Color.from_hsv(rng.randf(), 0.45, 0.85), Guest.LINES.pick_random())
+	var temperament: Dictionary = Guest.TEMPERAMENTS[rng.randi_range(0, Guest.TEMPERAMENTS.size() - 1)]
+	guest.temperament = temperament.name
+	guest.patience = temperament.wait * patience_scale
+	guest.ride_patience = temperament.ride * patience_scale
 	guest.wait_spot = spot
 	add_child(guest)
 	var y := _floor_y(home)
@@ -83,9 +92,17 @@ func _on_waiting(guest: Guest) -> void:
 	guest.face(Vector3(0, guest.global_position.y, 0))
 
 
+func _give_up(guest: Guest) -> void:
+	guest.state = Guest.State.LEAVING
+	guest.wait_spot = -1
+	_update_calls()
+	gave_up.emit(guest)
+	guest.walk([Vector3(_random_side(), guest.global_position.y, HALL_END_Z)], _remove.bind(guest))
+
+
 func _unload_and_load(f: int) -> void:
 	for guest in _guests.duplicate():
-		if guest.state == Guest.State.RIDING and guest.destination == f:
+		if guest.state == Guest.State.RIDING and (guest.destination == f or guest.fed_up):
 			_unload(guest)
 
 	var delay := 0.0
@@ -123,9 +140,8 @@ func _unload(guest: Guest) -> void:
 	guest.state = Guest.State.LEAVING
 	guest.cab_slot = -1
 	elevator.door_blockers += 1
-	served += 1
-	served_changed.emit(served)
-	said.emit('Guest: "Thanks!"')
+	if not guest.fed_up:
+		delivered.emit(guest)
 
 	guest.reparent(self)
 	var y := guest.global_position.y
@@ -146,11 +162,21 @@ func _remove(guest: Guest) -> void:
 
 func _update_calls() -> void:
 	for f in elevator.floor_count:
-		elevator.set_call(f, _guests.any(func(g: Guest) -> bool: return g.home_floor == f and _is_calling(g)))
+		var calling := _guests.filter(func(g: Guest) -> bool: return g.home_floor == f and _is_calling(g))
+		if calling.is_empty():
+			elevator.set_call(f, Elevator.CallLamp.OFF)
+		elif calling.any(func(g: Guest) -> bool: return g.is_impatient()):
+			elevator.set_call(f, Elevator.CallLamp.BLINKING)
+		else:
+			elevator.set_call(f, Elevator.CallLamp.ON)
 
 
 func _is_calling(guest: Guest) -> bool:
 	return guest.state == Guest.State.ARRIVING or guest.state == Guest.State.WAITING
+
+
+func _is_aboard(guest: Guest) -> bool:
+	return guest.state == Guest.State.BOARDING or guest.state == Guest.State.RIDING
 
 
 func _free_wait_spot(f: int) -> int:

@@ -16,14 +16,20 @@ Controls: **WASD** to walk, **mouse** to look, **left click** to press the butto
 
 `scenes/cabin_greybox.tscn`: a greybox of the rustic cabin, with a 3-floor shaft, a hallway per floor and the elevator cab. The scene is built from code in `scripts/cabin_greybox.gd`. The elevator never moves on its own: close the doors with the `> <` button, pick a floor, and open the doors with `< >` when you arrive.
 
-Guests (capsule placeholders) turn up in the hallways and wait by the elevator. The **Calls** lamps next to the buttons show which floors have someone waiting, with a ding for every new call. Open the doors on their floor and they walk in (up to 3 at a time); look at a guest and click to hear which floor they want. Open the doors on that floor and they walk out. Guests are spawned and moved by `scripts/guest_manager.gd`; no money, tips or patience yet.
+Guests (capsule placeholders) turn up in the hallways and wait by the elevator. The **Calls** lamps next to the buttons show which floors have someone waiting, with a ding for every new call. Open the doors on their floor and they walk in (up to 3 at a time); look at a guest and click to hear which floor they want. Open the doors on that floor and they walk out. Guests are spawned and moved by `scripts/guest_manager.gd`.
+
+A shift runs from 08:00 to 18:00 (about 9 real minutes, clock at the top) and brings 15 guests, with a lunch rush around 12:00–13:30. Guests come in three temperaments (hasty, normal, patient) that wait 30, 45 or 60 s for the cab and put up with 18, 25 or 35 s of riding. When a guest gets impatient, a red "!" shows above their head and their call lamp blinks. If they wait too long they take the stairs; if a ride takes too long they get out at the next stop. Either way they pay nothing and you get a complaint (−½ star). Each guest you deliver pays a €2 fare plus a tip of up to €6, less the closer they came to running out of patience. The shift ends once the clock has run out and the last guest is gone; the report adds a €5 wage and lets you play the shift again. Below 2 stars you're fired. The rules live in `scripts/shift.gd`.
 
 ## Tests
 
-A headless scripted test serves three guests in a row by pressing the cab's buttons:
+Headless scripted tests drive the cab through its own buttons. `guest_loop_test` serves three guests in a row; `shift_test` covers the clock, patience, pay and the end-of-shift report, then plays a whole shift with an autopilot:
 
 ```bash
 godot --headless --path . --fixed-fps 60 --script tests/guest_loop_test.gd
 ```
 
-It prints one line per check and exits with 1 if any check fails.
+```bash
+godot --headless --path . --fixed-fps 60 --script tests/shift_test.gd
+```
+
+Each prints one line per check and exits with 1 if any check fails.

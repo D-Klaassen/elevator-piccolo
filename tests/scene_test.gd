@@ -1,0 +1,104 @@
+extends SceneTree
+## Base for headless scripted tests: loads the cabin scene and drives the cab through
+## its own buttons, the way a player would. Tests extend this and override [method _run].
+
+var _failures := 0
+var _last_said := ""
+var _last_hint := ""
+var _scene: Node3D
+var _elevator: Elevator
+var _guests: GuestManager
+var _shift: Shift
+
+
+func _initialize() -> void:
+	# Fail instead of hanging if a script error stops the run.
+	create_timer(1500.0, true).timeout.connect(func() -> void:
+		print("%s: TIMED OUT" % _name())
+		quit(1))
+	_start.call_deferred()
+
+
+func _start() -> void:
+	_load_scene(load("res://scenes/cabin_greybox.tscn").instantiate())
+	await physics_frame
+	await _run()
+	print("%s: %s" % [_name(), "PASS" if _failures == 0 else "%d FAILED" % _failures])
+	quit(1 if _failures else 0)
+
+
+func _run() -> void:
+	pass
+
+
+func _name() -> String:
+	return get_script().resource_path.get_file().get_basename()
+
+
+## Picks up the scene's parts after it was added, or after it was reloaded.
+func _load_scene(scene: Node3D) -> void:
+	if not scene.is_inside_tree():
+		root.add_child(scene)
+		current_scene = scene
+	_scene = scene
+	_elevator = scene.get_node("Elevator")
+	_guests = scene.get_node("Guests")
+	_shift = scene.get_node("Shift")
+	_guests.said.connect(func(text: String) -> void: _last_said = text)
+	_shift.announced.connect(func(text: String) -> void: _last_said = text)
+	_elevator.hint.connect(func(text: String) -> void: _last_hint = text)
+
+
+## Closes the doors, rides to floor [param f] and opens the doors. With [param report]
+## false it still counts failures but doesn't print a line per check.
+func _ride_to(f: int, report := true) -> void:
+	var clear := await _wait_until(func() -> bool: return _elevator.door_blockers == 0 and _elevator.is_open_at_rest())
+	if report or not clear:
+		_check(clear, "doorway clear before leaving")
+	_press("close")
+	await _wait_until(func() -> bool: return not _elevator.doors_open and not _elevator._doors_busy)
+	_press(str(f))
+	var arrived := await _wait_until(func() -> bool: return _elevator.current_floor == f and not _elevator._moving)
+	if report or not arrived:
+		_check(arrived, "cab arrives at floor %d" % f)
+	_press("open")
+	await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
+
+
+func _press(action: String) -> void:
+	for child in _elevator.get_cab().get_children():
+		if child is ElevatorButton and child.action == action:
+			child.press()
+			return
+	_check(false, "button %s exists" % action)
+
+
+func _call_lit(f: int) -> bool:
+	return _elevator.call_state(f) != Elevator.CallLamp.OFF
+
+
+## A condition that turns true once [param guest] has been freed. It holds only the
+## instance id, because a lambda capturing a freed object errors when called.
+func _gone(guest: Guest) -> Callable:
+	var id := guest.get_instance_id()
+	return func() -> bool: return not is_instance_id_valid(id)
+
+
+func _wait_until(condition: Callable, timeout := 20.0) -> bool:
+	var frames := int(timeout * Engine.physics_ticks_per_second)
+	for i in frames:
+		if condition.call():
+			return true
+		await physics_frame
+	return condition.call()
+
+
+func _wait_seconds(seconds: float) -> void:
+	for i in int(seconds * Engine.physics_ticks_per_second):
+		await physics_frame
+
+
+func _check(ok: bool, what: String) -> void:
+	print("%s %s" % ["ok  " if ok else "FAIL", what])
+	if not ok:
+		_failures += 1

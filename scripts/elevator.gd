@@ -5,13 +5,15 @@ extends Node3D
 
 signal hint(text: String)
 
+enum CallLamp { OFF, ON, BLINKING }
+
 const FLOOR_HEIGHT := 3.5
 const CAB_HALF_WIDTH := 1.0
 const CAB_HEIGHT := 2.6
 const DOOR_HEIGHT := 2.1
 const DOOR_OPENING := 1.0
 const WALL := 0.1
-const SPEED := 1.5 ## metres per second
+const SPEED := 0.7 ## metres per second: about 5 s per floor
 const DOOR_TIME := 0.8 ## seconds
 
 @export var floor_count := 3
@@ -28,6 +30,8 @@ var _left_door: AnimatableBody3D
 var _right_door: AnimatableBody3D
 var _indicator: Label3D
 var _call_lamps: Array[MeshInstance3D] = []
+var _call_states: Array[CallLamp] = []
+var _blink_time := 0.0
 var _ding_player: AudioStreamPlayer
 
 
@@ -38,6 +42,8 @@ func _ready() -> void:
 	_build_call_panel()
 	_ding_player = AudioStreamPlayer.new()
 	_ding_player.stream = _make_ding()
+	# Keep ringing through the end-of-shift pause: a paused ding never finishes and leaks at quit.
+	_ding_player.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_ding_player)
 	_set_doors(true, true)
 
@@ -51,12 +57,23 @@ func is_open_at_rest() -> bool:
 	return doors_open and not _moving and not _doors_busy
 
 
-## Lights or dims the call lamp of floor [param f].
-func set_call(f: int, waiting: bool) -> void:
-	var mat: StandardMaterial3D = _call_lamps[f].mesh.material
-	mat.albedo_color = Color(1, 0.35, 0.2) if waiting else Color(0.2, 0.15, 0.12)
-	mat.emission_enabled = waiting
-	mat.emission = Color(1, 0.3, 0.1)
+## Sets the call lamp of floor [param f]: off, lit, or blinking for an impatient guest.
+func set_call(f: int, state: CallLamp) -> void:
+	_call_states[f] = state
+
+
+func call_state(f: int) -> CallLamp:
+	return _call_states[f]
+
+
+func _update_call_lamps(delta: float) -> void:
+	_blink_time = fmod(_blink_time + delta, 0.5)
+	for f in floor_count:
+		var lit := _call_states[f] == CallLamp.ON or (_call_states[f] == CallLamp.BLINKING and _blink_time < 0.25)
+		var mat: StandardMaterial3D = _call_lamps[f].mesh.material
+		mat.albedo_color = Color(1, 0.35, 0.2) if lit else Color(0.2, 0.15, 0.12)
+		mat.emission_enabled = lit
+		mat.emission = Color(1, 0.3, 0.1)
 
 
 func ding() -> void:
@@ -139,13 +156,15 @@ func _build_call_panel() -> void:
 	var header := Greybox.label(_cab, "Calls", Vector3(panel_x + 0.01, top + 0.14, z), 90.0, 20)
 	header.modulate = Color(0.95, 0.9, 0.8)
 	_call_lamps.resize(floor_count)
+	_call_states.resize(floor_count)
 	for f in floor_count:
 		var y := top - 0.16 * (floor_count - 1 - f)
 		var lamp := Greybox.box(_cab, Vector3(0.03, 0.1, 0.1), Vector3(panel_x + 0.01, y, z), Color.BLACK, false) as MeshInstance3D
 		_call_lamps[f] = lamp
 		var caption := Greybox.label(_cab, str(f), Vector3(panel_x + 0.03, y, z), 90.0, 22)
 		caption.modulate = Color.BLACK
-		set_call(f, false)
+		set_call(f, CallLamp.OFF)
+	_update_call_lamps(0.0)
 
 
 ## A short bell tone, generated so the project needs no audio files.
@@ -206,9 +225,10 @@ func _move_to(target: int) -> void:
 	tween.tween_callback(_arrive.bind(target))
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var f := roundi(_cab.position.y / FLOOR_HEIGHT)
 	_indicator.text = str(clampi(f, 0, floor_count - 1))
+	_update_call_lamps(delta)
 
 
 func _arrive(target: int) -> void:
