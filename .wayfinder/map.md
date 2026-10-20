@@ -18,7 +18,7 @@ A game design + tech spec for a playable **vertical slice**: engine chosen, firs
 
 ## Decisions so far
 
-<!-- - [title](tickets/xx.md): gist -->
+- [Which game engine do we build on?](tickets/01-engine-choice.md): Godot 4 + GDScript; Unity 6 as fallback if we lean heavily on store assets
 
 ## Not yet specified
 
