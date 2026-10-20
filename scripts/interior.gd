@@ -249,7 +249,23 @@ static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: flo
 
 ## Trims the cab ([param cab], [param w] its half width, [param h] its height): a light
 ## in the ceiling, a brass handrail on the back and right-hand walls, and a skirting.
-static func trim_cab(cab: Node3D, w: float, h: float, wall: float) -> void:
+## One door panel, [param width] by [param height] and [param thickness] thick, on [param
+## body]: matt brushed steel with a dark rubber edge down both sides, so the panels read as
+## solid slabs with seams between them, the same from either side.
+static func door_panel(body: Node3D, width: float, height: float, thickness: float) -> void:
+	var steel: StandardMaterial3D = _materials.get("door_steel")
+	if steel == null:
+		steel = Greybox.material(STEEL.darkened(0.1))
+		steel.metallic = 0.35
+		steel.roughness = 0.75
+		_materials["door_steel"] = steel
+	Greybox.box(body, Vector3(width, height, thickness), Vector3.ZERO, Color.WHITE, true, steel)
+	var edge := 0.012
+	for sign_x in [-1.0, 1.0]:
+		_box(body, Vector3(edge, height, thickness + 0.004), Vector3(sign_x * (width - edge) / 2, 0, 0), flat(Color("2a2a2e")))
+
+
+static func trim_cab(cab: Node3D, w: float, h: float, wall: float, front_face: float) -> void:
 	var brass := flat(BRASS, 0.2)
 	var inner := w - wall / 2
 	var light := Greybox.material(Color("fff6e0"))
@@ -268,12 +284,23 @@ static func trim_cab(cab: Node3D, w: float, h: float, wall: float) -> void:
 	for z in [-inner + 0.35, inner - 0.6]:
 		_box(cab, Vector3(rail_out, 0.03, 0.03), Vector3(inner - rail_out / 2, HANDRAIL_HEIGHT, z), brass)
 
-	# Skirting on the back and side walls, stopping short of where the open doors slide.
+	# Skirting on the back and side walls and on the inner front wall (at [param front_face],
+	# which the open doors slide behind), either side of the door.
 	var dark := flat(CAB_WALL[4])
-	var doors := w - wall - 0.05
 	_box(cab, Vector3(2 * inner, 0.1, 0.015), Vector3(0, 0.05, -inner + 0.0075), dark)
 	for x in [-inner + 0.0075, inner - 0.0075]:
-		_box(cab, Vector3(0.015, 0.1, doors + inner), Vector3(x, 0.05, (doors - inner) / 2), dark)
+		_box(cab, Vector3(0.015, 0.1, front_face + inner), Vector3(x, 0.05, (front_face - inner) / 2), dark)
+	var opening := Elevator.DOOR_OPENING / 2
+	var skirt := inner - opening - 0.1
+	for sign_x in [-1.0, 1.0]:
+		_box(cab, Vector3(skirt, 0.1, 0.015), Vector3(sign_x * (inner - skirt / 2), 0.05, front_face - 0.0075), dark)
+
+	# A frame round the door, like the one round the landing doors on the hallway side.
+	var frame := 0.1
+	var frame_z := front_face - 0.02
+	for sign_x in [-1.0, 1.0]:
+		_box(cab, Vector3(frame, Elevator.DOOR_HEIGHT + frame, 0.04), Vector3(sign_x * (opening + frame / 2), (Elevator.DOOR_HEIGHT + frame) / 2, frame_z), dark)
+	_box(cab, Vector3(Elevator.DOOR_OPENING + 2 * frame, frame, 0.04), Vector3(0, Elevator.DOOR_HEIGHT + frame / 2, frame_z), dark)
 
 
 static func _box(parent: Node3D, size: Vector3, center: Vector3, surface: Material) -> MeshInstance3D:

@@ -30,6 +30,12 @@ const DOOR_TIME := 1.2 ## seconds the standard doors take to open
 const CLOSE_SLOWER := 1.3 ## closing takes this many times as long as opening
 const PANEL_WIDTH := DOOR_OPENING / 4 ## two panels a side
 const PANEL_THICKNESS := 0.04
+const SKIN := 0.04 ## the cab's inner front wall, which the open doors slide behind
+## Where the cab's door panels are: the trailing ones just inside its front wall, the
+## leading ones in front of them, and the inner front wall just in front of those.
+const CAB_TRAIL_Z := CAB_HALF_WIDTH - WALL / 2 - 0.005 - PANEL_THICKNESS / 2
+const CAB_LEAD_Z := CAB_TRAIL_Z - PANEL_THICKNESS - 0.005
+const CAB_SKIN_Z := CAB_LEAD_Z - PANEL_THICKNESS / 2 - 0.005 - SKIN / 2
 const LANDING_TUCK := 0.03 ## metres open landing doors slide past the opening's edge, into the wall
 ## Share of the way the cab's doors go before they pick up the landing doors.
 const LANDING_LAG := 0.06
@@ -189,11 +195,18 @@ func _build_cab() -> void:
 	Greybox.box(_cab, Vector3(side, h, WALL), Vector3(-(DOOR_OPENING / 2 + side / 2), h / 2, w), Color.WHITE, true, walls)
 	Greybox.box(_cab, Vector3(side, h, WALL), Vector3(DOOR_OPENING / 2 + side / 2, h / 2, w), Color.WHITE, true, walls)
 	Greybox.box(_cab, Vector3(DOOR_OPENING, h - DOOR_HEIGHT, WALL), Vector3(0, (h + DOOR_HEIGHT) / 2, w), Color.WHITE, true, walls)
+	# And an inner front wall with the same opening, so the doors slide in between the two
+	# when they open, as the landing doors slide into the landing wall: from inside the cab
+	# the doors sit in the opening the way they do from the hallway.
+	var skin_side := w - WALL / 2 - DOOR_OPENING / 2
+	for sign_x in [-1.0, 1.0]:
+		Greybox.box(_cab, Vector3(skin_side, h, SKIN), Vector3(sign_x * (DOOR_OPENING / 2 + skin_side / 2), h / 2, CAB_SKIN_Z), Color.WHITE, true, walls)
+	Greybox.box(_cab, Vector3(DOOR_OPENING, h - DOOR_HEIGHT, SKIN), Vector3(0, (h + DOOR_HEIGHT) / 2, CAB_SKIN_Z), Color.WHITE, true, walls)
 	# Handrail, ceiling light and skirting: looks only, no collision.
 	var trim := Node3D.new()
 	trim.name = "Trim"
 	_cab.add_child(trim)
-	Interior.trim_cab(trim, w, h, WALL)
+	Interior.trim_cab(trim, w, h, WALL, CAB_SKIN_Z - SKIN / 2)
 
 	var light := OmniLight3D.new()
 	light.position = Vector3(0, h - 0.3, 0)
@@ -202,15 +215,14 @@ func _build_cab() -> void:
 	_cab.add_child(light)
 
 	# Floor indicator above the door, readable from inside (faces -Z).
-	_indicator = Greybox.label(_cab, "0", Vector3(0, DOOR_HEIGHT + 0.25, w - WALL), 180.0, 96)
+	_indicator = Greybox.label(_cab, "0", Vector3(0, DOOR_HEIGHT + 0.3, CAB_SKIN_Z - SKIN / 2 - 0.01), 180.0, 96)
 	_indicator.modulate = Color(1, 0.4, 0.2)
 
 
-## The cab's door panels, just inside its front wall: the trailing panels nearest the wall,
-## the leading ones in front of them.
+## The cab's door panels, between its front wall and its inner front wall: the trailing
+## panels nearest the front wall, the leading ones in front of them.
 func _build_doors() -> void:
-	var trail_z := CAB_HALF_WIDTH - WALL / 2 - 0.005 - PANEL_THICKNESS / 2
-	_door_panels = _make_panels(_cab, trail_z - PANEL_THICKNESS - 0.005, trail_z)
+	_door_panels = _make_panels(_cab, CAB_LEAD_Z, CAB_TRAIL_Z)
 
 
 ## Four door panels under [param parent]: left leading, left trailing, right leading, right
@@ -226,7 +238,7 @@ func _make_panels(parent: Node3D, lead_z: float, trail_z: float) -> Array[Animat
 			panel.sync_to_physics = false
 			panel.position.z = lead_z if lead else trail_z
 			parent.add_child(panel)
-			Greybox.box(panel, Vector3(PANEL_WIDTH, DOOR_HEIGHT, PANEL_THICKNESS), Vector3.ZERO, Color.WHITE, true, Interior.flat(Interior.STEEL, 0.6))
+			Interior.door_panel(panel, PANEL_WIDTH, DOOR_HEIGHT, PANEL_THICKNESS)
 			panels.append(panel)
 	return panels
 
