@@ -11,6 +11,7 @@ const HALL_DEPTH := 4.0
 const SHAFT_FRONT := 1.1 ## z where the landing wall starts, just in front of the cab
 
 var _hint_label: Label
+var _help_label: Label
 var _crosshair: Label
 var _looking_label: Label
 var _clock_label: Label
@@ -67,7 +68,7 @@ func _ready() -> void:
 	player.name = "Player"
 	player.position = Vector3(0, 0.05, -0.3)
 	player.rotation_degrees.y = 180.0 # face the doors (+Z)
-	player.mouse_sensitivity = _settings.mouse_sensitivity
+	player.look_sensitivity = _settings.look_sensitivity
 	add_child(player)
 	_player = player
 
@@ -179,12 +180,14 @@ func _build_hud() -> void:
 	_hint_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	hud.add_child(_hint_label)
 
-	var help := Label.new()
-	help.text = "WASD walk · mouse look · click a button or a guest · Esc frees the mouse"
-	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	help.position += Vector2(16, -32)
-	help.modulate = Color(1, 1, 1, 0.6)
-	hud.add_child(help)
+	_help_label = Label.new()
+	_help_label.name = "Help"
+	_help_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	_help_label.position += Vector2(16, -32)
+	_help_label.modulate = Color(1, 1, 1, 0.6)
+	hud.add_child(_help_label)
+	_update_help()
+	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 
 	_clock_label = Label.new()
 	_clock_label.add_theme_font_size_override("font_size", 28)
@@ -231,6 +234,18 @@ func _build_hud() -> void:
 	_settings_menu.closed.connect(_on_settings_closed)
 	_staff_room.settings_opened.connect(_on_staff_room_settings)
 	hud.add_child(_settings_menu)
+
+
+## The controls in the corner: for the controller while one is connected.
+func _update_help() -> void:
+	if Input.get_connected_joypads().is_empty():
+		_help_label.text = "WASD walk · mouse look · click (or E) a button or a guest · Esc pause"
+	else:
+		_help_label.text = "Left stick walk · right stick look · A a button or a guest · Start pause"
+
+
+func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
+	_update_help()
 
 
 func _on_looking_at_changed(text: String) -> void:
@@ -293,7 +308,7 @@ func _on_staff_room_settings() -> void:
 
 
 func _on_settings_changed() -> void:
-	_player.mouse_sensitivity = _settings.mouse_sensitivity
+	_player.look_sensitivity = _settings.look_sensitivity
 
 
 ## Back to the staff room if it opened the menu, otherwise back to the shift.

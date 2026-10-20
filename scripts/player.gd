@@ -1,16 +1,19 @@
 class_name Player
 extends CharacterBody3D
-## First-person player: WASD to walk, mouse to look, click to press (or talk to) what you look at.
-## Esc opens the pause menu ([SettingsMenu]), which frees the mouse.
+## First-person player: WASD or the left stick to walk, the mouse or the right stick to look,
+## click (or A, or E) to press (or talk to) what you look at. Esc or Start opens the pause
+## menu ([SettingsMenu]), which frees the mouse. The actions are set up in [Controls].
 
 signal looking_at_changed(text: String)
 
 const SPEED := 2.5
-const MOUSE_SENSITIVITY := 0.002
+const MOUSE_SENSITIVITY := 0.002 ## radians per pixel
+const STICK_LOOK_SPEED := 2.5 ## radians per second with the right stick all the way over
 const REACH := 2.0
 
-## Multiplies [constant MOUSE_SENSITIVITY]; set from [member Settings.mouse_sensitivity].
-var mouse_sensitivity := 1.0
+## Multiplies [constant MOUSE_SENSITIVITY] and [constant STICK_LOOK_SPEED]; set from
+## [member Settings.look_sensitivity].
+var look_sensitivity := 1.0
 
 var _camera: Camera3D
 var _ray: RayCast3D
@@ -19,7 +22,7 @@ var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
 func _ready() -> void:
-	_setup_inputs()
+	Controls.setup()
 
 	var shape := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
@@ -42,32 +45,28 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
-func _setup_inputs() -> void:
-	var keys := {
-		"move_forward": KEY_W,
-		"move_back": KEY_S,
-		"move_left": KEY_A,
-		"move_right": KEY_D,
-	}
-	for action: String in keys:
-		if InputMap.has_action(action):
-			continue
-		InputMap.add_action(action)
-		var event := InputEventKey.new()
-		event.physical_keycode = keys[action]
-		InputMap.action_add_event(action, event)
-
-
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * MOUSE_SENSITIVITY * mouse_sensitivity)
-		_camera.rotate_x(-event.relative.y * MOUSE_SENSITIVITY * mouse_sensitivity)
-		_camera.rotation.x = clampf(_camera.rotation.x, -1.4, 1.4)
+		_turn(event.relative * MOUSE_SENSITIVITY * look_sensitivity)
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		elif _looking_at and _looking_at.has_method("press"):
-			_looking_at.press()
+		else:
+			_press_looked_at()
+	elif event.is_action_pressed("interact"):
+		_press_looked_at()
+
+
+func _press_looked_at() -> void:
+	if _looking_at and _looking_at.has_method("press"):
+		_looking_at.press()
+
+
+## Turns right by [code]by.x[/code] and looks down by [code]by.y[/code] radians.
+func _turn(by: Vector2) -> void:
+	rotate_y(-by.x)
+	_camera.rotate_x(-by.y)
+	_camera.rotation.x = clampf(_camera.rotation.x, -1.4, 1.4)
 
 
 func _physics_process(delta: float) -> void:
@@ -79,6 +78,11 @@ func _physics_process(delta: float) -> void:
 	velocity.x = direction.x * SPEED
 	velocity.z = direction.z * SPEED
 	move_and_slide()
+
+	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+	if look != Vector2.ZERO:
+		# Squared, so small tilts aim finely and a full tilt still turns quickly.
+		_turn(look * look.length() * STICK_LOOK_SPEED * look_sensitivity * delta)
 
 	_update_looking_at()
 

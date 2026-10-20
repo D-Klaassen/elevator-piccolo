@@ -1,6 +1,6 @@
 extends "res://tests/scene_test.gd"
 ## Headless scripted test of the settings: Esc pauses the shift and opens them, the volume
-## and mouse sensitivity sliders take effect and are saved straight away, the next shift
+## and look sensitivity sliders take effect and are saved straight away, the next shift
 ## picks them up, and the staff room opens them too.
 ##
 ## Run: tests/run.sh settings_test
@@ -16,10 +16,10 @@ func _run() -> void:
 
 func _test_saving() -> void:
 	var s := Settings.load_saved()
-	_check(s.volume == 0.8 and s.mouse_sensitivity == 1.0, "without a save the settings are the defaults")
+	_check(s.volume == 0.8 and s.look_sensitivity == 1.0, "without a save the settings are the defaults")
 	s.volume = 1.5
-	s.mouse_sensitivity = 10.0
-	_check(s.volume == 1.0 and s.mouse_sensitivity == Settings.MAX_SENSITIVITY, "they stay within their range")
+	s.look_sensitivity = 10.0
+	_check(s.volume == 1.0 and s.look_sensitivity == Settings.MAX_SENSITIVITY, "they stay within their range")
 	s.volume = 0.0
 	s.apply_volume()
 	_check(AudioServer.is_bus_mute(0), "volume 0 mutes the game")
@@ -41,11 +41,11 @@ func _test_pause_menu() -> void:
 	_slider("Volume").value = 0.4
 	_check(is_equal_approx(AudioServer.get_bus_volume_db(0), linear_to_db(0.4)), "the volume slider sets the volume")
 	_check(_text(menu).contains("Volume: 40%"), "and shows it")
-	_slider("MouseSensitivity").value = 2.0
-	_check(_player().mouse_sensitivity == 2.0, "the sensitivity slider sets the mouse sensitivity")
-	_check(_text(menu).contains("Mouse sensitivity: ×2.00"), "and shows it")
+	_slider("LookSensitivity").value = 2.0
+	_check(_player().look_sensitivity == 2.0, "the sensitivity slider sets the look sensitivity")
+	_check(_text(menu).contains("Look sensitivity: ×2.00"), "and shows it")
 	var saved := Settings.load_saved()
-	_check(is_equal_approx(saved.volume, 0.4) and saved.mouse_sensitivity == 2.0, "both are saved straight away")
+	_check(is_equal_approx(saved.volume, 0.4) and saved.look_sensitivity == 2.0, "both are saved straight away")
 
 	await _escape()
 	_check(not menu.visible and not paused, "Esc again closes the menu and the shift goes on")
@@ -58,7 +58,7 @@ func _test_next_shift() -> void:
 	AudioServer.set_bus_volume_db(0, 0.0)
 	_load_scene(await _reload())
 	_shift.spawning = false
-	_check(_player().mouse_sensitivity == 2.0, "the next shift keeps the mouse sensitivity")
+	_check(_player().look_sensitivity == 2.0, "the next shift keeps the look sensitivity")
 	_check(is_equal_approx(AudioServer.get_bus_volume_db(0), linear_to_db(0.4)), "and the volume")
 
 
@@ -71,18 +71,20 @@ func _test_staff_room() -> void:
 	_check(room.visible and not _menu().visible, "Esc doesn't open the pause menu in the staff room")
 	(room.find_child("Settings", true, false) as Button).pressed.emit()
 	_check(_menu().visible and not room.visible and _text(_menu()).contains("Settings"), "its Settings button does")
-	_check(_slider("MouseSensitivity").value == 2.0, "showing the saved settings")
+	_check(_slider("LookSensitivity").value == 2.0, "showing the saved settings")
 	(_menu().find_child("Close", true, false) as Button).pressed.emit()
 	_check(room.visible and not _menu().visible and paused, "Back returns to the staff room, still between shifts")
 
 
 func _escape() -> void:
-	var event := InputEventAction.new()
-	event.action = "ui_cancel"
-	event.pressed = true
-	Input.parse_input_event(event)
-	await process_frame
-	await process_frame
+	for pressed in [true, false]:
+		var event := InputEventKey.new()
+		event.keycode = KEY_ESCAPE
+		event.physical_keycode = KEY_ESCAPE
+		event.pressed = pressed
+		Input.parse_input_event(event)
+		await process_frame
+		await process_frame
 
 
 func _reload() -> Node3D:
