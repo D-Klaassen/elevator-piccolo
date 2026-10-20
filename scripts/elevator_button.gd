@@ -1,6 +1,7 @@
 class_name ElevatorButton
 extends StaticBody3D
 ## A physical button in the cab. The player presses it by looking at it and clicking.
+## It flashes when pressed, and the elevator keeps it lit while the request is pending.
 
 signal pressed(button: ElevatorButton)
 
@@ -9,8 +10,12 @@ signal pressed(button: ElevatorButton)
 ## Shown in the HUD while the player looks at the button.
 @export var display_name := ""
 
+## True while what the button asked for hasn't happened yet.
+var lit := false
+
 var _mesh: MeshInstance3D
 var _base_color := Color(0.85, 0.7, 0.2)
+var _flashing := false
 
 
 func setup(p_action: String, p_display_name: String, caption: String) -> void:
@@ -40,11 +45,23 @@ func press() -> void:
 	pressed.emit(self)
 
 
+func set_lit(on: bool) -> void:
+	if on == lit:
+		return
+	lit = on
+	_show_light(on or _flashing)
+
+
 func _flash() -> void:
-	var mat: StandardMaterial3D = _mesh.mesh.material
-	mat.albedo_color = Color(1, 1, 0.6)
-	mat.emission_enabled = true
-	mat.emission = Color(1, 0.9, 0.4)
+	_flashing = true
+	_show_light(true)
 	await get_tree().create_timer(0.25).timeout
-	mat.albedo_color = _base_color
-	mat.emission_enabled = false
+	_flashing = false
+	_show_light(lit)
+
+
+func _show_light(on: bool) -> void:
+	var mat: StandardMaterial3D = _mesh.mesh.material
+	mat.albedo_color = Color(1, 1, 0.6) if on else _base_color
+	mat.emission_enabled = on
+	mat.emission = Color(1, 0.9, 0.4)
