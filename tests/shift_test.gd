@@ -61,7 +61,7 @@ func _test_patience() -> void:
 	_check(p._marker.visible, "a red ! shows above the impatient guest")
 	_check(await _wait_until(func() -> bool: return p.state == Guest.State.LEAVING, p.patience), "the guest gives up after %d s" % p.patience)
 	_check(_elevator.call_state(2) == Elevator.CallLamp.OFF, "the call lamp goes out when they leave")
-	_check(_last_said.contains("stairs"), "they say they'll take the stairs (%s)" % _last_said)
+	_check(p.bubble_text().contains("stairs") and _last_said.contains("took the stairs"), "they say they'll take the stairs, and the HUD says so (%s)" % _last_said)
 	_check(_shift.lost == 1 and _shift.stars == Shift.START_STARS - Shift.COMPLAINT, "a complaint costs half a star")
 	_check(_shift.money() == 0, "a guest who gave up pays nothing")
 	_check(await _wait_until(_gone(p)), "they walk off and disappear")
@@ -103,7 +103,7 @@ func _test_ride_patience() -> void:
 	var money := _shift.money()
 	await _ride_to(2)
 	_check(f.fed_up and _shift.lost == lost + 1, "a guest who rides too long complains")
-	_check(_last_said.contains("next stop"), "they want out at the next stop (%s)" % _last_said)
+	_check(f.bubble_text().contains("next stop") and _last_said.contains("next stop"), "they want out at the next stop (%s)" % f.bubble_text())
 	_check(await _wait_until(_gone(f)), "they get out on floor 2, not their floor, and disappear")
 	_check(_shift.money() == money and _shift.served == 2, "a fed-up rider pays nothing")
 

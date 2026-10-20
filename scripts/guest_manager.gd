@@ -88,7 +88,7 @@ func reply(choice: Guest.Reply) -> void:
 	var guest := talking_to
 	guest.reply = choice
 	guest.answered = true
-	said.emit('Guest: "%s"' % Guest.REACTIONS[choice].pick_random())
+	guest.say(Guest.REACTIONS[choice].pick_random())
 	replied.emit(guest)
 	_close_talk()
 
@@ -134,7 +134,6 @@ func spawn_guest(home: int, destination: int) -> Guest:
 	add_child(guest)
 	var y := _floor_y(home)
 	guest.global_position = Vector3(_random_side(), y, HALL_END_Z)
-	guest.spoke.connect(func(text: String) -> void: said.emit('Guest: "%s"' % text))
 	guest.talked_to.connect(_on_talked_to.bind(guest))
 	_guests.append(guest)
 

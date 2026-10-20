@@ -45,7 +45,7 @@ func _test_quiet_guest() -> void:
 	g.ride_patience = 600
 	_check(await _wait_until(func() -> bool: return g.state == Guest.State.RIDING), "a quiet guest boards")
 	g.press()
-	_check(_last_said.to_lower().contains("floor 1"), "clicking a guest names their floor straight away (%s)" % _last_said)
+	_check(g.bubble_text().to_lower().contains("floor 1"), "clicking a guest names their floor straight away, in a bubble (%s)" % g.bubble_text())
 	await _wait_seconds(GuestManager.CHAT_DELAY_MAX + 1)
 	_check(_guests.talking_to == null and not _replies.visible, "a quiet guest doesn't chat")
 	await _ride_to(1)
@@ -65,12 +65,12 @@ func _test_good_reply_by_key() -> void:
 		var line := g.reply_line(g.reply_order[i])
 		_check(text.contains('%d   "%s"' % [i + 1, line]), "reply %d is on offer: %s" % [i + 1, line])
 	g.press()
-	_check(_last_said.to_lower().contains("floor 2") and _replies.visible, "clicking them still names their floor, and the choices stay up")
+	_check(g.bubble_text().to_lower().contains("floor 2") and _replies.visible, "clicking them still names their floor, and the choices stay up")
 
 	_press_key(KEY_1 + g.reply_order.find(Guest.Reply.GOOD))
 	_check(g.answered and g.reply == Guest.Reply.GOOD, "the number key of the good reply picks it")
 	_check(not _replies.visible and _guests.talking_to == null, "the choices go away after replying")
-	_check(Guest.REACTIONS[Guest.Reply.GOOD].any(func(r: String) -> bool: return _last_said.contains(r)), "the guest reacts (%s)" % _last_said)
+	_check(Guest.REACTIONS[Guest.Reply.GOOD].any(func(r: String) -> bool: return g.bubble_text() == r), "the guest reacts (%s)" % g.bubble_text())
 
 	var tips := _shift.tips
 	await _ride_to(2)
@@ -89,7 +89,7 @@ func _test_bad_reply_by_click() -> void:
 	(_replies.find_child("Reply1", true, false) as Button).pressed.emit()
 	_check(g.answered and g.reply == Guest.Reply.BAD, "clicking the top reply picks the one listed there")
 	_check(_shift.reply_complaints == 1 and _shift.stars == stars - Shift.COMPLAINT, "the bad reply gets a complaint: -½ star")
-	_check(_last_said.contains("manager"), "the guest says so (%s)" % _last_said)
+	_check(g.bubble_text().contains("manager") and _last_said.contains("Complaint"), "the guest says so, and the HUD shows the complaint (%s)" % g.bubble_text())
 
 	var tips := _shift.tips
 	await _ride_to(0)

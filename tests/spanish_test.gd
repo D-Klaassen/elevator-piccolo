@@ -97,7 +97,7 @@ func _test_bellevue() -> void:
 		return r.randf() >= 0.35 and r.randf() >= 0.4) # no clue word and no gesture the first time
 	_last_said = ""
 	g.press()
-	_check(g.bubble_text() != "" and _last_said == "", "they answer in a speech bubble, not in the HUD (%s)" % g.bubble_text())
+	_check(g.bubble_text() != "" and _last_said == "", "they answer in a speech bubble (%s)" % g.bubble_text())
 	_check(not g.bubble_text().contains("4") and not g.bubble_text().to_lower().contains("pool"), "and it doesn't give the floor away")
 	_check(g.under_text() == "", "without lessons there's nothing underneath")
 
@@ -114,7 +114,7 @@ func _test_bellevue() -> void:
 	var english := _guests.spawn_guest(2, 6)
 	english.language = "en"
 	english.press()
-	_check(_last_said.to_lower().contains("floor 6") and english.bubble_text() == "", "English guests still name their floor in the HUD")
+	_check(english.bubble_text().to_lower().contains("floor 6") and english.under_text() == "", "English guests name their floor in a bubble too, with nothing underneath")
 
 	# The staff room at Bellevue sells the lessons.
 	_shift.minutes = Shift.END - 0.1

@@ -138,16 +138,20 @@ func _on_delivered(guest: Guest) -> void:
 	fares += fare()
 	tips += tip
 	stats_changed.emit()
-	announced.emit('Guest: "Thanks!"   +€%d fare, +€%d tip' % [fare(), tip])
+	guest.say("Thanks!")
+	announced.emit("+€%d fare, +€%d tip" % [fare(), tip])
 
 
 func _on_gave_up(guest: Guest) -> void:
 	lost += 1
 	stars = maxf(stars - COMPLAINT, 0.0)
 	stats_changed.emit()
-	var said := 'Guest: "That\'s it, I\'m getting out at the next stop!"' if guest.fed_up \
-		else 'Floor %d: "Forget it, I\'ll take the stairs!"' % guest.home_floor
-	announced.emit("%s   Complaint: -%.1f star" % [said, COMPLAINT])
+	if guest.fed_up:
+		guest.say("That's it, I'm getting out at the next stop!")
+		announced.emit("A guest wants out at the next stop.   Complaint: -%.1f star" % COMPLAINT)
+	else:
+		guest.say("Forget it, I'll take the stairs!")
+		announced.emit("A guest on floor %d took the stairs.   Complaint: -%.1f star" % [guest.home_floor, COMPLAINT])
 
 
 func _on_replied(guest: Guest) -> void:
@@ -156,7 +160,8 @@ func _on_replied(guest: Guest) -> void:
 	reply_complaints += 1
 	stars = maxf(stars - COMPLAINT, 0.0)
 	stats_changed.emit()
-	announced.emit('Guest: "I\'ll be mentioning this to the manager."   Complaint: -%.1f star' % COMPLAINT)
+	guest.say("I'll be mentioning this to the manager.")
+	announced.emit("An unhappy guest.   Complaint: -%.1f star" % COMPLAINT)
 
 
 func _end() -> void:

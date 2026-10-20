@@ -3,10 +3,9 @@ extends StaticBody3D
 ## A capsule placeholder guest. Waits in the hallway, rides the cab and walks out on
 ## their floor. Look at them and click to hear which floor they want. Some guests strike
 ## up a chat during the ride and wait for your reply. A red "!" above their head means
-## they're running out of patience. Spanish guests answer in a speech bubble above their
-## head, with what you understood underneath.
+## they're running out of patience. Whatever a guest says shows in a speech bubble above
+## their head; for a Spanish guest, with what you understood underneath.
 
-signal spoke(text: String)
 signal talked_to ## the player clicked them; a Spanish guest's answer is up to the [GuestManager]
 
 enum State { ARRIVING, WAITING, BOARDING, RIDING, LEAVING }
@@ -185,13 +184,13 @@ func is_impatient() -> bool:
 func press() -> void:
 	asked += 1
 	if language == "en":
-		spoke.emit(line)
+		say(line)
 	talked_to.emit()
 
 
 ## Shows [param text] in a speech bubble above their head, with [param under] (what you
 ## understood, and what they do) beneath it, for [constant BUBBLE_TIME] seconds.
-func say(text: String, under: String) -> void:
+func say(text: String, under := "") -> void:
 	_bubble.text = text
 	_under.text = under
 	_bubble.show()
