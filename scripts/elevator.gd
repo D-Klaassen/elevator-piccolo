@@ -157,6 +157,9 @@ func _build_doors() -> void:
 func _make_door(door_name: String) -> AnimatableBody3D:
 	var door := AnimatableBody3D.new()
 	door.name = door_name
+	# Synced to physics, a door's collision only follows its own moves, not the cab's: after
+	# a ride it stayed on the floor you left, and you walked through the shut doors.
+	door.sync_to_physics = false
 	_cab.add_child(door)
 	Greybox.box(door, Vector3(DOOR_OPENING / 2, DOOR_HEIGHT, 0.05), Vector3.ZERO, Color(0.7, 0.7, 0.75))
 	return door

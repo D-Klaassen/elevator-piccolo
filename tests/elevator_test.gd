@@ -10,6 +10,7 @@ func _run() -> void:
 	await _test_queue_in_order()
 	await _test_stops_on_the_way()
 	await _test_door_lights()
+	await _test_doors_ride_along()
 
 
 func _test_queue_in_order() -> void:
@@ -91,3 +92,18 @@ func _test_door_lights() -> void:
 	_press("open")
 	_check(_last_hint.contains("Not while moving") and not _elevator.is_lit("open"), "open does nothing while riding")
 	_check(await _wait_until(func() -> bool: return _elevator.current_floor == 2 and not _elevator._moving), "the ride carries on")
+
+
+func _test_doors_ride_along() -> void:
+	# Ride up with the doors shut: their collision has to come along, or you walk through them.
+	var start := _elevator.current_floor
+	var target := 1 if start != 1 else 2
+	_press(str(target))
+	_press("close")
+	_check(await _wait_until(func() -> bool: return _elevator.current_floor == target and not _elevator._moving), "it rides to floor %d" % target)
+	await physics_frame
+	for door: AnimatableBody3D in [_elevator._left_door, _elevator._right_door]:
+		var body_y: float = PhysicsServer3D.body_get_state(door.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM).origin.y
+		_check(absf(body_y - door.global_position.y) < 0.01, "%s's collision is where the door is (%.2f, %.2f)" % [door.name, body_y, door.global_position.y])
+	_press("open")
+	await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
