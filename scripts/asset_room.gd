@@ -7,10 +7,11 @@ extends Node3D
 ##
 ## You walk down the aisle (+X) through the sections, each with a sign and a 1.8 m pole to
 ## judge sizes by: the characters (press interact on one to go through its animations), the
-## furniture, the parts of the cab and the doors, a sample corner per hotel (a hallway
-## built by the same code as the game's ([Hallway]), open on the aisle side, with a
-## working elevator in it) and the sounds (press a button to hear it). The models are
-## picked up from the asset folders, so a new one shows up on its own.
+## furniture, the parts of the cab and the doors (press an elevator door to open or close
+## it), a sample corner per hotel (a hallway built by the same code as the game's
+## ([Hallway]), open on the aisle side, with a working elevator in it) and the sounds (press
+## a button to hear it). The models are picked up from the asset folders, so a new one
+## shows up on its own.
 ##
 ## Esc opens the Settings menu, whose Walk speed slider lets you walk up to
 ## [constant MAX_WALK_SPEED] times faster; Leave the Asset room goes back where you came from: the
@@ -51,6 +52,7 @@ var _crosshair: Label
 var _looking_label: Label
 var _debug_label: Label
 var _sounds := {} ## name -> AudioStreamPlayer
+var _door_tweens := {} ## ElevatorDoor -> the Tween sliding it
 
 
 ## Leaves the hotel for the Asset room. [param from_staff_room] says where to go back to.
@@ -78,10 +80,11 @@ func _ready() -> void:
 		if path.get_base_dir() != characters_dir:
 			_place(_model(path), _left_x <= _right_x)
 	_section("Cab and doors")
-	_place(_door_panel(), true)
-	_place(_floor_display(), false)
-	_place(_button("call button", "", true), true)
-	_place(_button("floor button", "2", false), false)
+	_place(_elevator_door("side-opening elevator door", ElevatorDoor.Style.SIDE), true)
+	_place(_elevator_door("centre-opening elevator door", ElevatorDoor.Style.CENTRE), false)
+	_place(_floor_display(), true)
+	_place(_button("call button", "", true), false)
+	_place(_button("floor button", "2", false), true)
 	_section("Hotel styles")
 	for hotel in Hotels.LADDER:
 		_sample_corner(hotel)
@@ -205,15 +208,40 @@ func _model(path: String) -> Node3D:
 	return holder
 
 
-## One door panel, as in the cab and the landing doors, standing on the floor.
-func _door_panel() -> Node3D:
-	var holder := _holder("door panel")
-	var panel := StaticBody3D.new()
-	panel.position.y = Elevator.DOOR_HEIGHT / 2
-	holder.add_child(panel)
-	Interior.door_panel(panel, Elevator.PANEL_WIDTH, Elevator.DOOR_HEIGHT, Elevator.PANEL_THICKNESS)
-	panel.set_meta(Player.NAME_META, "door panel")
+## An elevator door of [param style] as a landing has it: a piece of plain wall with the
+## doors hanging behind it, a frame round the opening and the threshold. Pressing it opens
+## or closes the doors the way the standard doors move; walk round it to see them slide in
+## behind the wall.
+func _elevator_door(asset_name: String, style: ElevatorDoor.Style) -> Node3D:
+	var holder := _holder(asset_name)
+	# The wall's middle at z = 0, its hallway side towards the aisle (+Z).
+	var half := 1.3
+	var height := Elevator.DOOR_HEIGHT + 0.6
+	var opening := Elevator.DOOR_OPENING / 2
+	var side := half - opening
+	var wall := Greybox.material(Color(0.78, 0.76, 0.72))
+	for sign_x in [-1.0, 1.0]:
+		Greybox.box(holder, Vector3(side, height, Elevator.WALL), Vector3(sign_x * (opening + side / 2), height / 2, 0), Color.WHITE, true, wall)
+	var lintel := height - Elevator.DOOR_HEIGHT
+	Greybox.box(holder, Vector3(2 * opening, lintel, Elevator.WALL), Vector3(0, Elevator.DOOR_HEIGHT + lintel / 2, 0), Color.WHITE, true, wall)
+	Interior.landing_frame(holder, 0.0, 0.0, Interior.flat(Interior.CAB_WALL[4]))
+	Interior.landing_sill(holder, 0.0, 0.0)
+	var door := ElevatorDoor.make(holder, "Doors", style, -Elevator.LANDING_LEAD_BACK, -Elevator.LANDING_TRAIL_BACK, Elevator.LANDING_TUCK)
+	AssetTag.cover(holder, asset_name, func() -> void: _slide(door, door.amount < 0.5))
 	return holder
+
+
+## Opens or closes [param door] from wherever it is, along the doors' speed curves.
+func _slide(door: ElevatorDoor, open: bool) -> void:
+	if _door_tweens.has(door):
+		(_door_tweens[door] as Tween).kill()
+	var from := door.amount
+	var to := 1.0 if open else 0.0
+	var curve := Elevator.OPENING_SPEED if open else Elevator.CLOSING_SPEED
+	var time := Elevator.DOOR_TIME * (1.0 if open else Elevator.CLOSE_SLOWER) * absf(to - from)
+	var tween := create_tween()
+	tween.tween_method(func(t: float) -> void: door.show_open(lerpf(from, to, Elevator.travelled(curve, t))), 0.0, 1.0, time)
+	_door_tweens[door] = tween
 
 
 ## A floor display on a post at eye height.
@@ -331,7 +359,7 @@ func _name_corner(corner: Node3D, elevator: Elevator, hotel: Dictionary) -> void
 		if holder.get_child_count() > 0 and not holder is MeshInstance3D: # a model, not a shelf
 			AssetTag.cover(holder, holder.name.to_camel_case().rstrip("0123456789"))
 	cab.set_meta(Player.NAME_META, "cab %s wall" % Interior.CAB_WALL[0])
-	for panel: Node3D in elevator.door_panels() + elevator.landing_doors(0):
+	for panel: Node3D in elevator.door_panels() + elevator.landing_doors(0).panels():
 		panel.set_meta(Player.NAME_META, "door panel")
 	for button: ElevatorButton in corner.find_children("*", "ElevatorButton", true, false):
 		match button.action:
@@ -390,7 +418,7 @@ func _build_hud() -> void:
 
 	var help := Label.new()
 	help.name = "Help"
-	help.text = "Look at an asset to see its name · click (or E, or A) a character or a button to play it · Esc menu"
+	help.text = "Look at an asset to see its name · click (or E, or A) a character, a button or a door to play it · Esc menu"
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	help.position += Vector2(16, -32)
 	help.modulate = Color(1, 1, 1, 0.6)

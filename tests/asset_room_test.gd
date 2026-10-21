@@ -18,6 +18,7 @@ func _run() -> void:
 	await _test_character()
 	await _test_sounds()
 	await _test_cab()
+	await _test_elevator_doors()
 	await _test_walk_speed()
 	await _leave_to_shift()
 	await _enter_and_leave_from_staff_room()
@@ -48,7 +49,7 @@ func _test_every_model() -> void:
 
 func _test_code_built() -> void:
 	for asset_name in [
-		"door panel", "floor display", "call button", "floor button", "1.8 m",
+		"door panel", "side-opening elevator door", "centre-opening elevator door", "floor display", "call button", "floor button", "1.8 m",
 		"Rustic cabin logs wall", "Rustic cabin planks floor", "Rustic cabin skirting",
 		"Pension Bellevue wallpaper wall", "Pension Bellevue carpet floor",
 		"Pension Bellevue panels wainscot", "Pension Bellevue chair rail",
@@ -93,6 +94,18 @@ func _test_cab() -> void:
 		if child is ElevatorButton and child.action == "close":
 			child.press()
 	_check(await _wait_until(func() -> bool: return elevator.door_amount == 0.0), "and its close button shuts the doors")
+
+
+## The elevator door models open when pressed, sliding in behind their wall, and close again.
+func _test_elevator_doors() -> void:
+	for asset_name in ["side-opening elevator door", "centre-opening elevator door"]:
+		var tag := _room.asset(asset_name)
+		var door := tag.get_parent().find_child("Doors", false, false) as ElevatorDoor
+		await _press_looked_at(tag)
+		_check(await _wait_until(func() -> bool: return door.amount == 1.0, 5.0), "pressing the %s opens it" % asset_name)
+		_check(door.panels().all(func(p: Node3D) -> bool: return p.position.z + Elevator.PANEL_THICKNESS / 2 < -Elevator.WALL / 2), "its doors hang behind the wall")
+		await _press_looked_at(tag)
+		_check(await _wait_until(func() -> bool: return door.amount == 0.0, 5.0), "and pressing it again shuts it")
 
 
 func _test_walk_speed() -> void:

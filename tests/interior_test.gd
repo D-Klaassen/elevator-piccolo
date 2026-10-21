@@ -113,17 +113,19 @@ func _test_cab() -> void:
 		var overhead := box.position.y > Elevator.CAB_HEIGHT - 0.1
 		if not (flat_on_wall or overhead):
 			_check(false, "cab trim at %s is flat against a wall or overhead" % box.get_center())
-		var in_doorway := box.end.z > Elevator.CAB_LEAD_Z - Elevator.PANEL_THICKNESS / 2 # where the doors slide
+		# Where the doors slide: between their leading and trailing panels' outer faces.
+		var in_doorway := box.end.z > Elevator.CAB_LEAD_Z - Elevator.PANEL_THICKNESS / 2 and box.position.z < Elevator.CAB_TRAIL_Z + Elevator.PANEL_THICKNESS / 2
 		var threshold := box.end.y < 0.01 # the strip on the floor the doors run in
 		if in_doorway and box.position.y < Elevator.DOOR_HEIGHT and not threshold:
 			_check(false, "cab trim at %s is clear of the doors" % box.get_center())
 		if is_equal_approx(box.get_center().y, Interior.HANDRAIL_HEIGHT) and maxf(box.size.x, box.size.z) > 1.0:
 			rails += 1
 	_check(rails == 2, "a handrail runs along the back and the right-hand wall")
+	# The buttons and the call panel take up z 0.2 to 0.75 of the -X wall.
 	var buttons_x := -(Elevator.CAB_HALF_WIDTH - Elevator.WALL / 2 - 0.02)
 	_check(trim.get_children().all(func(m: MeshInstance3D) -> bool:
 		var box: AABB = m.transform * m.get_aabb()
-		return not (box.position.x < buttons_x + 0.1 and box.position.y < 2.2 and box.end.y > 0.7 and box.end.z > 0.2)), "and none by the buttons")
+		return not (box.position.x < buttons_x + 0.1 and box.position.y < 2.2 and box.end.y > 0.7 and box.end.z > 0.2 and box.position.z < 0.75)), "and none by the buttons")
 
 
 ## True if [param box] (in a hallway whose floor is at [param y]) lies flat against one of

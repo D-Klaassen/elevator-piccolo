@@ -5,7 +5,7 @@ class_name Decor
 ##
 ## Every piece stands along the walls or by the back wall, clear of the path guests walk
 ## from the back corners to the spots by the elevator. Positions are in hallway
-## coordinates: x across (the side walls are at x = ±3), z from the landing wall (z ≈ 1.1)
+## coordinates: x across (the side walls are at x = ±3), z from the landing wall (z ≈ 1.2)
 ## to the back wall (z ≈ 5); y is the floor. A piece's turn is how far it is rotated, in
 ## degrees: at 0 it faces +Z, at 90 it faces +X (out from the left wall), at -90 -X (out
 ## from the right wall), and at 180 -Z (out from the back wall, towards the elevator).
