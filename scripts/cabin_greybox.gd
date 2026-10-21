@@ -5,7 +5,8 @@ extends Node3D
 ## minimal HUD.
 ## Every shift loads the saved career, fits the cab with the upgrades bought, and saves the
 ## career again once the shift is over. Between shifts you go through the staff room.
-## Esc pauses the shift and opens the settings.
+## The game starts on the title screen, over the hotel; Esc pauses the shift and opens the
+## pause menu ([GameMenu]).
 
 var _hint_label: Label
 var _help_label: Label
@@ -17,9 +18,12 @@ var _debug_label: Label
 var _report: ShiftReport
 var _staff_room: StaffRoom
 var _end_screen: EndScreen
-var _settings_menu: SettingsMenu
+var _menu: GameMenu
 var _settings: Settings
+var _hud: CanvasLayer
+var _env: Environment
 var _player: Player
+var _guests: GuestManager
 var _replies: ReplyChoices
 var _hint_timer: SceneTreeTimer
 var _shift: Shift
@@ -28,6 +32,8 @@ var _floors: int
 ## True from the end of the shift (or a return from the Asset room to the staff room) until
 ## the next shift starts.
 var _between_shifts := false
+## The hint the shift starts with, held back while the title screen shows.
+var _start_hint := ""
 
 
 func _ready() -> void:
@@ -36,11 +42,9 @@ func _ready() -> void:
 		return
 	_career = Career.load_saved()
 	_settings = Settings.load_saved()
-	_settings.apply_volume()
-	_settings.apply_anti_aliasing(get_viewport())
 	var hotel := _career.hotel_info()
 	_floors = hotel.floors
-	Hallway.build_environment(self)
+	_env = Hallway.build_environment(self)
 	Hallway.build_shaft(self, _floors)
 	for f in _floors:
 		Hallway.build(self, hotel, f)
@@ -63,6 +67,7 @@ func _ready() -> void:
 	guests.spanish_lessons = _career.level(Upgrades.SPANISH)
 	guests.ride_patience_scale = Upgrades.RIDE_PATIENCE[elevator.music_level] * hotel.ride_patience
 	add_child(guests)
+	_guests = guests
 
 	_shift = Shift.new()
 	_shift.name = "Shift"
@@ -74,11 +79,11 @@ func _ready() -> void:
 	player.name = "Player"
 	player.position = Vector3(0, 0.05, -0.3)
 	player.rotation_degrees.y = 180.0 # face the doors (+Z)
-	player.look_sensitivity = _settings.look_sensitivity
 	add_child(player)
 	_player = player
 
 	_build_hud()
+	_apply_settings()
 	elevator.hint.connect(_show_hint)
 	guests.said.connect(_show_hint)
 	guests.chatting.connect(_on_chatting)
@@ -92,20 +97,27 @@ func _ready() -> void:
 	_on_clock_changed(Shift.START)
 	_on_stats_changed()
 	if elevator.call_panel_level > 0:
-		_show_hint("Your shift starts. Guests call from the hallways: watch the Calls lamps on your right.")
+		_start_hint = "Your shift starts. Guests call from the hallways: watch the Calls lamps on your right."
 	else:
-		_show_hint("Your shift starts. A ding means a guest is calling: find out on which floor.")
+		_start_hint = "Your shift starts. A ding means a guest is calling: find out on which floor."
 	if Benchmark.active:
 		add_child(Benchmark.new())
 	if AssetRoom.back_to_staff_room:
 		AssetRoom.back_to_staff_room = false
 		_take_a_break()
 		_staff_room.show_for(_career)
+	elif GameMenu.show_title:
+		GameMenu.show_title = false
+		_open_menu(GameMenu.Where.TITLE)
+	else:
+		_show_start_hint()
 
 
 func _build_hud() -> void:
 	var hud := CanvasLayer.new()
+	hud.name = "HUD"
 	add_child(hud)
+	_hud = hud
 
 	_crosshair = Label.new()
 	_crosshair.text = "+"
@@ -184,24 +196,45 @@ func _build_hud() -> void:
 	_end_screen.back.connect(_on_continued)
 	hud.add_child(_end_screen)
 
-	_settings_menu = SettingsMenu.new()
-	_settings_menu.name = "SettingsMenu"
-	_settings_menu.settings = _settings
-	_settings_menu.pause_requested.connect(_on_pause_requested)
-	_settings_menu.changed.connect(_on_settings_changed)
-	_settings_menu.closed.connect(_on_settings_closed)
-	_settings_menu.end_shift_requested.connect(_shift.end_now)
-	_settings_menu.asset_room_requested.connect(func() -> void: AssetRoom.enter(get_tree(), _between_shifts))
+	var menu_layer := CanvasLayer.new()
+	menu_layer.name = "Menu"
+	menu_layer.layer = 2
+	add_child(menu_layer)
+	_menu = GameMenu.new()
+	_menu.name = "GameMenu"
+	_menu.settings = _settings
+	_menu.pause_requested.connect(_on_pause_requested)
+	_menu.changed.connect(_on_settings_changed)
+	_menu.closed.connect(_on_menu_closed)
+	_menu.new_career_requested.connect(_on_new_career)
+	_menu.title_requested.connect(_on_title_requested)
+	_menu.end_shift_requested.connect(_shift.end_now)
+	_menu.asset_room_requested.connect(func() -> void: AssetRoom.enter(get_tree(), _between_shifts))
 	_staff_room.settings_opened.connect(_on_staff_room_settings)
-	hud.add_child(_settings_menu)
+	menu_layer.add_child(_menu)
 
 
-## The controls in the corner: for the controller while one is connected.
+## The controls in the corner: for the controller while one is connected, with the keys
+## the settings put the actions on.
 func _update_help() -> void:
 	if Input.get_connected_joypads().is_empty():
-		_help_label.text = "WASD walk · mouse look · click (or E) a button or a guest · Esc pause"
+		var walk := "".join(["move_forward", "move_left", "move_back", "move_right"].map(Controls.key_name))
+		_help_label.text = "%s walk · mouse look · click (or %s) a button or a guest · Esc pause" % [walk, Controls.key_name("interact")]
 	else:
 		_help_label.text = "Left stick walk · right stick look · A a button or a guest · Start pause"
+
+
+## What follows the settings: the sound, the window and the view, how you look round, the
+## crosshair, the controls in the corner and how long you have to answer a chat.
+func _apply_settings() -> void:
+	_settings.apply_to(get_viewport(), _env)
+	_player.use_settings(_settings)
+	_crosshair.text = _settings.crosshair_text()
+	_help_label.visible = _settings.help_line
+	_update_help()
+	_guests.reply_time = _settings.reply_seconds()
+	_replies.time_limit = _settings.reply_seconds()
+	_debug_label.text = DebugOptions.label()
 
 
 func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
@@ -276,28 +309,60 @@ func _on_started() -> void:
 
 
 func _on_pause_requested() -> void:
+	_open_menu(GameMenu.Where.SHIFT)
+
+
+## Stops the hotel and opens the title screen or the pause menu over it, without the HUD.
+func _open_menu(where: GameMenu.Where) -> void:
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_settings_menu.open(SettingsMenu.Where.SHIFT)
+	_hud.hide()
+	var status := ""
+	if where == GameMenu.Where.TITLE:
+		if FileAccess.file_exists(Career.save_path):
+			status = "%s · shift %d · €%.2f" % [_shift.hotel.name, _career.shifts_done + 1, _career.balance]
+	else:
+		status = "%s · %s\n%.1f ★ · €%.2f · served %d" % [_shift.hotel.name, Shift.format_clock(int(_shift.minutes)),
+				_shift.stars, _shift.money(), _shift.served]
+	_menu.open(where, status)
 
 
 func _on_staff_room_settings() -> void:
 	_staff_room.hide()
-	_settings_menu.open(SettingsMenu.Where.STAFF_ROOM)
+	_menu.open_settings(GameMenu.Where.STAFF_ROOM)
 
 
-func _on_settings_changed() -> void:
-	_player.look_sensitivity = _settings.look_sensitivity
-	_debug_label.text = DebugOptions.label()
+func _on_settings_changed(_property: String) -> void:
+	_apply_settings()
 
 
-## Back to the staff room if it opened the menu, otherwise back to the shift.
-func _on_settings_closed() -> void:
+## Back to the staff room if it opened the settings, otherwise on with the shift.
+func _on_menu_closed() -> void:
+	_hud.show()
 	if _between_shifts:
 		_staff_room.show_for(_career)
 		return
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_show_start_hint()
+
+
+## A fresh career from the cabin: the save goes, and the shift starts again without it.
+func _on_new_career() -> void:
+	DirAccess.remove_absolute(Career.save_path)
+	_on_started()
+
+
+## The shift is dropped, unsaved, and the game starts again on the title screen.
+func _on_title_requested() -> void:
+	GameMenu.show_title = true
+	_on_started()
+
+
+func _show_start_hint() -> void:
+	if _start_hint:
+		_show_hint(_start_hint)
+		_start_hint = ""
 
 
 func _save_career() -> void:
@@ -308,7 +373,7 @@ func _save_career() -> void:
 
 func _show_hint(text: String) -> void:
 	_hint_label.text = text
-	_hint_timer = get_tree().create_timer(3.0)
+	_hint_timer = get_tree().create_timer(_settings.hint_seconds())
 	var timer := _hint_timer
 	await timer.timeout
 	# Only clear if no newer hint replaced this one.

@@ -1,240 +1,516 @@
 class_name SettingsMenu
 extends PanelContainer
-## The settings panel: sliders for the volume and the look sensitivity and a switch for
-## smooth edges, saved as soon as they change. During a shift Esc (or Start) opens it as the pause menu, and Esc, Start, B or
-## Resume closes it again; the staff room opens it with its Settings button, and so does
-## Esc in the Asset room. In debug builds it has a Debug section with the [DebugOptions],
-## End shift now and the way into (or out of) the Asset room; in the Asset room it also has
-## a slider for [member AssetRoom.walk_speed].
+## The settings window: a tab per section (Video, Audio, Controls, Game, and Debug in debug
+## builds), a row per setting with its name and its control, and the focused setting's
+## explanation in the footer. Q/E or LB/RB switch tabs; a choice is a "◀ value ▶" button that
+## ←/→ (or a click, or A) step through. Every change is saved and takes effect straight away:
+## the window, vsync and frame rate limit here, the rest by whoever listens to [signal changed].
+## [GameMenu] shows it; Back (or Esc, or B) emits [signal back].
 
-## Where the menu is opened from.
-enum Where { SHIFT, STAFF_ROOM, ASSET_ROOM }
-
-## Esc or Start was pressed during a shift while the menu was closed.
-signal pause_requested
-signal closed
-signal changed
-## End shift now was pressed: the menu has closed, and the shift should end as it stands.
+## A setting changed: the [Settings] property, or "" for several at once (Reset tab) or a
+## debug option.
+signal changed(property: String)
+signal back
+## End shift now (Debug) was pressed.
 signal end_shift_requested
-## The Asset room button was pressed.
+## Asset room (Debug) was pressed.
 signal asset_room_requested
-## Leave the Asset room was pressed.
-signal asset_room_left
+
+## The tabs and their settings. [code]id[/code] is the [Settings] property; [code]kind[/code]
+## is "choice" (an index into [code]choices[/code]), "toggle", "slider", "key" (the key for
+## [code]action[/code]) or "reset_keys".
+const SECTIONS: Array[Dictionary] = [
+	{"id": "video", "title": "Video", "settings": [
+		{"id": "display_mode", "label": "Display mode", "kind": "choice", "choices": ["Windowed", "Fullscreen", "Borderless"],
+			"help": "Windowed, fullscreen, or a borderless window the size of the screen."},
+		{"id": "window_size", "label": "Window size", "kind": "choice", "choices": ["1280 × 720", "1600 × 900", "1920 × 1080", "2560 × 1440"],
+			"help": "The size of the window, when Display mode is Windowed. The menus and the HUD grow with it."},
+		{"id": "vsync", "label": "V-Sync", "kind": "toggle",
+			"help": "Waits for the screen before drawing the next frame: no tearing, a touch more input lag."},
+		{"id": "max_fps", "label": "Frame rate limit", "kind": "choice", "choices": ["30", "60", "120", "144", "No limit"],
+			"help": "The most frames a second the game draws. 30 saves battery on a laptop."},
+		{"id": "msaa", "label": "Smooth edges", "kind": "choice", "choices": ["Off", "2×", "4×", "8×"],
+			"help": "Anti-aliasing (MSAA) on the 3D view. Turn it down if the game runs slowly."},
+		{"id": "render_scale", "label": "Render scale", "kind": "slider", "min": Settings.MIN_RENDER_SCALE, "max": 1.0, "step": 0.05, "format": "percent",
+			"help": "Draws the 3D view at a lower resolution and scales it up (FSR). Lower is faster but blurrier."},
+		{"id": "fov", "label": "Field of view", "kind": "slider", "min": Settings.MIN_FOV, "max": Settings.MAX_FOV, "step": 1.0, "format": "degrees",
+			"help": "How wide you see. Wider helps in the cramped cab; narrower if wide views make you queasy."},
+		{"id": "brightness", "label": "Brightness", "kind": "slider", "min": Settings.MIN_BRIGHTNESS, "max": Settings.MAX_BRIGHTNESS, "step": 0.05, "format": "percent",
+			"help": "Makes the hotel lighter or darker."},
+		{"id": "show_fps", "label": "Show frame rate", "kind": "toggle",
+			"help": "Shows the frames per second in the top left corner."},
+	]},
+	{"id": "audio", "title": "Audio", "settings": [
+		{"id": "volume", "label": "Master volume", "kind": "slider", "min": 0.0, "max": 1.0, "step": 0.05, "format": "percent",
+			"help": "Everything at once. 0 mutes the game."},
+		{"id": "music_volume", "label": "Music", "kind": "slider", "min": 0.0, "max": 1.0, "step": 0.05, "format": "percent",
+			"help": "The radio in the cab, once you've bought it."},
+		{"id": "effects_volume", "label": "Sound effects", "kind": "slider", "min": 0.0, "max": 1.0, "step": 0.05, "format": "percent",
+			"help": "The dings of the guests' calls and the chimes of the cab."},
+		{"id": "mute_in_background", "label": "Mute in the background", "kind": "toggle",
+			"help": "Goes quiet while you're in another window."},
+	]},
+	{"id": "controls", "title": "Controls", "settings": [
+		{"id": "mouse_sensitivity", "label": "Mouse sensitivity", "kind": "slider", "min": Settings.MIN_SENSITIVITY, "max": Settings.MAX_SENSITIVITY, "step": 0.05, "format": "times",
+			"help": "How fast the mouse turns the view."},
+		{"id": "stick_sensitivity", "label": "Controller sensitivity", "kind": "slider", "min": Settings.MIN_SENSITIVITY, "max": Settings.MAX_SENSITIVITY, "step": 0.05, "format": "times",
+			"help": "How fast the right stick turns the view."},
+		{"id": "invert_y", "label": "Invert look up/down", "kind": "toggle",
+			"help": "Push up (or move the mouse up) to look down, as in a flight sim."},
+		{"id": "key_move_forward", "label": "Walk forward", "kind": "key", "action": "move_forward"},
+		{"id": "key_move_back", "label": "Walk back", "kind": "key", "action": "move_back"},
+		{"id": "key_move_left", "label": "Walk left", "kind": "key", "action": "move_left"},
+		{"id": "key_move_right", "label": "Walk right", "kind": "key", "action": "move_right"},
+		{"id": "key_interact", "label": "Press / talk", "kind": "key", "action": "interact"},
+		{"id": "reset_keys", "label": "", "kind": "reset_keys",
+			"help": "Puts every key back where it was."},
+	]},
+	{"id": "game", "title": "Game", "settings": [
+		{"id": "reply_time", "label": "Time to reply in a chat", "kind": "choice", "choices": ["6 s", "12 s", "No limit"],
+			"help": "How long you have to pick a reply before you blurt one out. No limit takes the pressure off."},
+		{"id": "hint_time", "label": "Messages stay for", "kind": "choice", "choices": ["3 s", "5 s", "8 s"],
+			"help": "How long pay, complaints and hints stay at the bottom of the screen."},
+		{"id": "crosshair", "label": "Crosshair", "kind": "choice", "choices": ["Plus", "Dot", "Off"],
+			"help": "The mark in the middle of the screen that shows what you'd press."},
+		{"id": "help_line", "label": "Controls in the corner", "kind": "toggle",
+			"help": "The line in the bottom left corner that lists the controls."},
+		{"id": "pause_in_background", "label": "Pause in the background", "kind": "toggle",
+			"help": "Pauses the shift when you switch to another window."},
+	]},
+]
+## The settings that change the window, which this menu applies itself.
+const DISPLAY: Array[String] = ["display_mode", "window_size", "vsync", "max_fps"]
+const KEY_HELP := "Press, then press the new key (Esc to keep the old one). The controller's buttons stay as they are."
 
 var settings: Settings
+## The open tab: a section id, or "debug".
+var tab := "video"
 
-var _title: Label
-var _volume: HSlider
-var _volume_label: Label
-var _sensitivity: HSlider
-var _sensitivity_label: Label
-var _anti_aliasing: CheckButton
-var _close: Button
-var _speed: Button
+var _tabs := {} ## tab id -> its Button
+var _pages := {} ## tab id -> its GridContainer
+var _help: Label
+var _reset: Button
 var _end_shift: Button
 var _asset_room: Button
-var _leave_asset_room: Button
-var _walk_speed: HSlider
-var _walk_speed_label: Label
+var _walk_speed_row: Array[Control] = []
+var _speed: Button
 
 
 func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_ALWAYS # works while the game is paused
 	set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	grow_horizontal = Control.GROW_DIRECTION_BOTH
 	grow_vertical = Control.GROW_DIRECTION_BOTH
-	custom_minimum_size = Vector2(420, 0)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.1, 0.08, 0.95)
-	style.set_corner_radius_all(6)
-	style.set_content_margin_all(24)
-	add_theme_stylebox_override("panel", style)
-
+	custom_minimum_size = Vector2(880, 560)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	add_child(box)
 
-	_title = Label.new()
-	_title.add_theme_font_size_override("font_size", 32)
-	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(_title)
-
-	_volume_label = Label.new()
-	box.add_child(_volume_label)
-	_volume = _slider("Volume", 0.0, 1.0, 0.05)
-	_volume.value_changed.connect(_on_volume_changed)
-	box.add_child(_volume)
-
-	_sensitivity_label = Label.new()
-	box.add_child(_sensitivity_label)
-	_sensitivity = _slider("LookSensitivity", Settings.MIN_SENSITIVITY, Settings.MAX_SENSITIVITY, 0.05)
-	_sensitivity.value_changed.connect(_on_sensitivity_changed)
-	box.add_child(_sensitivity)
-
-	_anti_aliasing = CheckButton.new()
-	_anti_aliasing.name = "AntiAliasing"
-	_anti_aliasing.text = "Smooth edges (turn off if the game runs slowly)"
-	_anti_aliasing.toggled.connect(_on_anti_aliasing_toggled)
-	box.add_child(_anti_aliasing)
-
-	_close = Button.new()
-	_close.name = "Close"
-	_close.pressed.connect(close)
-	box.add_child(_close)
-
-	var quit := Button.new()
-	quit.name = "Quit"
-	quit.text = "Quit the game"
-	quit.pressed.connect(func() -> void: get_tree().quit())
-	box.add_child(quit)
-	if DebugOptions.available:
-		box.add_child(_build_debug())
-	hide()
-
-
-## The Debug section: the [DebugOptions] switches and the game speed.
-func _build_debug() -> Control:
-	var debug := VBoxContainer.new()
-	debug.name = "Debug"
-	debug.add_theme_constant_override("separation", 8)
-	debug.add_child(HSeparator.new())
+	var header := HBoxContainer.new()
+	box.add_child(header)
 	var title := Label.new()
-	title.text = "Debug"
-	title.add_theme_font_size_override("font_size", 20)
-	debug.add_child(title)
-	debug.add_child(_switch("InfiniteMoney", "Infinite money", DebugOptions.infinite_money,
+	title.text = "Settings"
+	title.add_theme_font_size_override("font_size", 28)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	var hint := Label.new()
+	hint.text = "Q / E  or  LB / RB  to switch tabs"
+	hint.modulate = Color(1, 1, 1, 0.45)
+	header.add_child(hint)
+
+	var tab_row := HBoxContainer.new()
+	tab_row.add_theme_constant_override("separation", 4)
+	box.add_child(tab_row)
+	box.add_child(HSeparator.new())
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	box.add_child(scroll)
+	var pages := VBoxContainer.new()
+	pages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(pages)
+
+	var group := ButtonGroup.new()
+	var sections := SECTIONS.duplicate()
+	if DebugOptions.available:
+		sections.append({"id": "debug", "title": "Debug", "settings": []})
+	for section in sections:
+		var button := Button.new()
+		button.name = section.title + "Tab"
+		button.text = section.title
+		button.toggle_mode = true
+		button.button_group = group
+		button.focus_mode = Control.FOCUS_NONE
+		button.theme_type_variation = &"Tab"
+		button.pressed.connect(select_tab.bind(section.id))
+		tab_row.add_child(button)
+		_tabs[section.id] = button
+		var page := _build_debug() if section.id == "debug" else _build_page(section)
+		page.name = section.title
+		pages.add_child(page)
+		_pages[section.id] = page
+
+	box.add_child(HSeparator.new())
+	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 12)
+	box.add_child(footer)
+	_help = Label.new()
+	_help.name = "Help"
+	_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_help.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_help.custom_minimum_size.y = 48
+	_help.modulate = Color(1, 1, 1, 0.75)
+	footer.add_child(_help)
+	_reset = Button.new()
+	_reset.name = "ResetTab"
+	_reset.text = "Reset tab"
+	_reset.pressed.connect(reset_tab)
+	footer.add_child(_reset)
+	var done := Button.new()
+	done.name = "Back"
+	done.text = "Back"
+	done.pressed.connect(back.emit)
+	footer.add_child(done)
+
+
+## Shows the window with the saved values, on the tab it was on. [param where] decides what
+## the Debug tab offers.
+func open(where: GameMenu.Where) -> void:
+	set_where(where)
+	_refresh()
+	show()
+	select_tab(tab)
+
+
+## Fits the Debug tab to [param where]: End shift now during a shift, the Asset room button
+## outside the Asset room, and the walk speed inside it.
+func set_where(where: GameMenu.Where) -> void:
+	if _end_shift:
+		_end_shift.visible = where == GameMenu.Where.SHIFT
+		_asset_room.visible = where != GameMenu.Where.ASSET_ROOM
+		for control in _walk_speed_row:
+			control.visible = where == GameMenu.Where.ASSET_ROOM
+
+
+## Opens the tab [param id] and focuses its first setting.
+func select_tab(id: String) -> void:
+	tab = id
+	_tabs[id].button_pressed = true
+	for page_id in _pages:
+		_pages[page_id].visible = page_id == id
+	_reset.visible = id != "debug"
+	var first := _first_focusable(_pages[id])
+	if first:
+		GameMenu.focus_later(first)
+
+
+## Q/E or LB/RB: the tab before or after this one. Called by [GameMenu] while the window
+## shows.
+func handle_tab_keys(event: InputEvent) -> void:
+	var by := 0
+	if event is InputEventKey and event.pressed and not event.echo:
+		by = -1 if event.keycode == KEY_Q else (1 if event.keycode == KEY_E else 0)
+	elif event is InputEventJoypadButton and event.pressed:
+		by = -1 if event.button_index == JOY_BUTTON_LEFT_SHOULDER else (1 if event.button_index == JOY_BUTTON_RIGHT_SHOULDER else 0)
+	if by != 0:
+		var ids := _tabs.keys()
+		select_tab(ids[posmod(ids.find(tab) + by, ids.size())])
+		get_viewport().set_input_as_handled()
+
+
+## Every setting on the open tab back to its default.
+func reset_tab() -> void:
+	var defaults := Settings.new()
+	for section in SECTIONS:
+		if section.id != tab:
+			continue
+		for setting in section.settings:
+			if setting.kind == "key" or setting.kind == "reset_keys":
+				settings.reset_keys()
+			else:
+				settings.set(setting.id, defaults.get(setting.id))
+	if tab == "video":
+		settings.apply_display()
+	if tab == "controls":
+		settings.apply_keys()
+	_refresh()
+	_saved("")
+
+
+func _build_page(section: Dictionary) -> GridContainer:
+	var grid := _grid()
+	for setting in section.settings:
+		var label := Label.new()
+		label.text = setting.label
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(label)
+		var control := _control(setting)
+		control.custom_minimum_size.x = 320
+		grid.add_child(control)
+	return grid
+
+
+## The control for [param setting], named after it, wired to [member settings].
+func _control(setting: Dictionary) -> Control:
+	var id: String = setting.id
+	var control: Control
+	match setting.kind:
+		"choice":
+			control = CycleButton.new(setting.choices,
+					func() -> int: return settings.get(id),
+					func(i: int) -> void: _set_setting(id, i))
+		"toggle":
+			control = CycleButton.new(["Off", "On"],
+					func() -> int: return 1 if settings.get(id) else 0,
+					func(i: int) -> void: _set_setting(id, i == 1))
+		"slider":
+			control = SliderRow.new(setting,
+					func() -> float: return settings.get(id),
+					func(v: float) -> void: _set_setting(id, v))
+		"key":
+			control = KeyButton.new(setting.action, settings, _on_key_bound)
+		"reset_keys":
+			var button := Button.new()
+			button.text = "Reset keys"
+			button.pressed.connect(func() -> void:
+				settings.reset_keys()
+				_on_key_bound())
+			control = button
+	control.name = id
+	var focusable := _first_focusable(control)
+	var help: String = KEY_HELP if setting.kind == "key" else setting.help
+	focusable.focus_entered.connect(func() -> void: _help.text = help)
+	focusable.mouse_entered.connect(func() -> void: _help.text = help)
+	return control
+
+
+## The Debug tab: the [DebugOptions], End shift now and the way into the Asset room, and in
+## the Asset room its walk speed.
+func _build_debug() -> GridContainer:
+	var grid := _grid()
+	grid.add_child(_debug_label("Infinite money"))
+	grid.add_child(_switch("InfiniteMoney", DebugOptions.infinite_money,
 			func(on: bool) -> void: DebugOptions.infinite_money = on))
-	debug.add_child(_switch("SkipHotelRequirements", "Skip hotel requirements", DebugOptions.skip_hotel_requirements,
+	grid.add_child(_debug_label("Skip hotel requirements"))
+	grid.add_child(_switch("SkipHotelRequirements", DebugOptions.skip_hotel_requirements,
 			func(on: bool) -> void: DebugOptions.skip_hotel_requirements = on))
+	grid.add_child(_debug_label(""))
 	_speed = Button.new()
 	_speed.name = "GameSpeed"
 	_speed.pressed.connect(func() -> void:
 		DebugOptions.speed = DebugOptions.next_speed()
-		_debug_changed())
-	debug.add_child(_speed)
+		_update_speed()
+		changed.emit(""))
+	grid.add_child(_speed)
 	_update_speed()
+	grid.add_child(_debug_label(""))
 	_end_shift = Button.new()
 	_end_shift.name = "EndShiftNow"
 	_end_shift.text = "End shift now"
-	_end_shift.pressed.connect(func() -> void:
-		close()
-		end_shift_requested.emit())
-	debug.add_child(_end_shift)
+	_end_shift.pressed.connect(end_shift_requested.emit)
+	grid.add_child(_end_shift)
+	grid.add_child(_debug_label(""))
 	_asset_room = Button.new()
 	_asset_room.name = "AssetRoom"
 	_asset_room.text = "Asset room"
 	_asset_room.pressed.connect(asset_room_requested.emit)
-	debug.add_child(_asset_room)
-	_walk_speed_label = Label.new()
-	debug.add_child(_walk_speed_label)
-	_walk_speed = _slider("WalkSpeed", 1.0, AssetRoom.MAX_WALK_SPEED, 0.5)
-	_walk_speed.value_changed.connect(func(value: float) -> void:
-		AssetRoom.walk_speed = value
-		_update_walk_speed()
-		changed.emit())
-	debug.add_child(_walk_speed)
-	_leave_asset_room = Button.new()
-	_leave_asset_room.name = "LeaveAssetRoom"
-	_leave_asset_room.text = "Leave the Asset room"
-	_leave_asset_room.pressed.connect(asset_room_left.emit)
-	debug.add_child(_leave_asset_room)
-	return debug
+	grid.add_child(_asset_room)
+	var walk_label := _debug_label("Walk speed")
+	grid.add_child(walk_label)
+	var walk := SliderRow.new({"id": "WalkSpeed", "min": 1.0, "max": AssetRoom.MAX_WALK_SPEED, "step": 0.5, "format": "times"},
+			func() -> float: return AssetRoom.walk_speed,
+			func(v: float) -> void:
+				AssetRoom.walk_speed = v
+				changed.emit(""))
+	walk.name = "WalkSpeedRow"
+	grid.add_child(walk)
+	_walk_speed_row = [walk_label, walk]
+	for control in grid.get_children():
+		if control is BaseButton or control is SliderRow:
+			_first_focusable(control).focus_entered.connect(func() -> void:
+				_help.text = "For testing, in debug builds only. The switches are off again when the game starts.")
+	return grid
 
 
-func _switch(switch_name: String, text: String, on: bool, set_option: Callable) -> CheckButton:
+func _debug_label(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return label
+
+
+func _switch(switch_name: String, on: bool, set_option: Callable) -> CheckButton:
 	var button := CheckButton.new()
 	button.name = switch_name
-	button.text = text
 	button.button_pressed = on
 	button.toggled.connect(func(pressed: bool) -> void:
 		set_option.call(pressed)
-		_debug_changed())
+		changed.emit(""))
 	return button
-
-
-func _debug_changed() -> void:
-	_update_speed()
-	changed.emit()
 
 
 func _update_speed() -> void:
 	_speed.text = "Game speed: ×%d" % DebugOptions.speed
 
 
-func _update_walk_speed() -> void:
-	_walk_speed_label.text = "Walk speed: ×%s" % String.num(AssetRoom.walk_speed, 1)
+func _grid() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 32)
+	grid.add_theme_constant_override("v_separation", 10)
+	return grid
 
 
-func _slider(slider_name: String, from: float, to: float, step: float) -> HSlider:
-	var slider := HSlider.new()
-	slider.name = slider_name
-	slider.min_value = from
-	slider.max_value = to
-	slider.step = step
-	return slider
+func _set_setting(id: String, value: Variant) -> void:
+	settings.set(id, value)
+	if id in DISPLAY:
+		settings.apply_display()
+	_saved(id)
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	var pause := event.is_action_pressed("pause")
-	if visible and (pause or event.is_action_pressed("ui_cancel")):
-		close()
-		get_viewport().set_input_as_handled()
-	elif pause and not visible and not get_tree().paused:
-		pause_requested.emit()
-		get_viewport().set_input_as_handled()
+func _on_key_bound() -> void:
+	_refresh()
+	_saved("keys")
 
 
-## Opens the menu: as the pause menu during a shift, from the staff room, or in the
-## Asset room.
-func open(where: Where) -> void:
-	_title.text = ["Paused", "Settings", "Asset room"][where]
-	_close.text = "Resume" if where == Where.SHIFT else "Back"
-	_volume.set_value_no_signal(settings.volume)
-	_sensitivity.set_value_no_signal(settings.look_sensitivity)
-	_anti_aliasing.set_pressed_no_signal(settings.anti_aliasing)
-	_update_labels()
-	if _end_shift:
-		_end_shift.visible = where == Where.SHIFT
-		_asset_room.visible = where != Where.ASSET_ROOM
-		_leave_asset_room.visible = where == Where.ASSET_ROOM
-		_walk_speed.visible = where == Where.ASSET_ROOM
-		_walk_speed_label.visible = where == Where.ASSET_ROOM
-		_walk_speed.set_value_no_signal(AssetRoom.walk_speed)
-		_update_walk_speed()
-	show()
-	_close.grab_focus()
-
-
-func close() -> void:
-	hide()
-	closed.emit()
-
-
-func _on_volume_changed(value: float) -> void:
-	settings.volume = value
-	settings.apply_volume()
-	_saved()
-
-
-func _on_sensitivity_changed(value: float) -> void:
-	settings.look_sensitivity = value
-	_saved()
-
-
-func _on_anti_aliasing_toggled(on: bool) -> void:
-	settings.anti_aliasing = on
-	settings.apply_anti_aliasing(get_viewport())
-	_saved()
-
-
-func _saved() -> void:
-	_update_labels()
+func _saved(id: String) -> void:
 	var error := settings.save()
 	if error != OK:
 		push_error("Couldn't save the settings to %s: %s" % [Settings.save_path, error_string(error)])
-	changed.emit()
+	changed.emit(id)
 
 
-func _update_labels() -> void:
-	_volume_label.text = "Volume: %d%%" % roundi(settings.volume * 100)
-	_sensitivity_label.text = "Look sensitivity: ×%.2f" % settings.look_sensitivity
+## Every control shows the value it stands for again.
+func _refresh() -> void:
+	for page in _pages.values():
+		for control in page.get_children():
+			if control.has_method("refresh"):
+				control.refresh()
+
+
+static func _first_focusable(control: Control) -> Control:
+	if control.focus_mode != Control.FOCUS_NONE:
+		return control
+	for child in control.get_children():
+		if child is Control and child.visible:
+			var found := _first_focusable(child)
+			if found:
+				return found
+	return null
+
+
+## A choice (or Off/On) as one button, "◀  Fullscreen  ▶": ←/→ step through the values, a
+## click or A steps forward.
+class CycleButton extends Button:
+	var _choices: Array
+	var _get: Callable
+	var _set: Callable
+
+	func _init(choices: Array, get_index: Callable, set_index: Callable) -> void:
+		_choices = choices
+		_get = get_index
+		_set = set_index
+		pressed.connect(step.bind(1))
+
+	func _ready() -> void:
+		refresh()
+
+	func _gui_input(event: InputEvent) -> void:
+		if event.is_action_pressed("ui_left"):
+			step(-1)
+			accept_event()
+		elif event.is_action_pressed("ui_right"):
+			step(1)
+			accept_event()
+
+	## Moves [param by] values on, wrapping round.
+	func step(by: int) -> void:
+		_set.call(posmod(_get.call() + by, _choices.size()))
+		refresh()
+
+	func value() -> String:
+		return _choices[_get.call()]
+
+	func refresh() -> void:
+		text = "◀   %s   ▶" % value()
+
+
+## A slider with its value next to it: "80%", "75°" or "×1.25".
+class SliderRow extends HBoxContainer:
+	var slider: HSlider
+	var _label: Label
+	var _format: String
+	var _get: Callable
+
+	func _init(setting: Dictionary, get_value: Callable, set_value: Callable) -> void:
+		_format = setting.format
+		_get = get_value
+		add_theme_constant_override("separation", 12)
+		slider = HSlider.new()
+		slider.name = setting.id.to_pascal_case()
+		slider.min_value = setting.min
+		slider.max_value = setting.max
+		slider.step = setting.step
+		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		add_child(slider)
+		_label = Label.new()
+		_label.custom_minimum_size.x = 60
+		_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		add_child(_label)
+		slider.value_changed.connect(func(v: float) -> void:
+			set_value.call(v)
+			_show(v))
+
+	func refresh() -> void:
+		slider.set_value_no_signal(_get.call())
+		_show(slider.value)
+
+	func _show(v: float) -> void:
+		match _format:
+			"percent":
+				_label.text = "%d%%" % roundi(v * 100)
+			"degrees":
+				_label.text = "%d°" % roundi(v)
+			_:
+				_label.text = "×%.2f" % v
+
+
+## The key an action is on: press it, then press the new key. Esc keeps the old one, and so
+## does a controller button, which can't be pressed here.
+class KeyButton extends Button:
+	var listening := false
+	var _action: String
+	var _settings: Settings
+	var _bound: Callable
+
+	func _init(action: String, settings: Settings, on_bound: Callable) -> void:
+		_action = action
+		_settings = settings
+		_bound = on_bound
+		pressed.connect(func() -> void:
+			listening = true
+			text = "Press a key…")
+
+	func _ready() -> void:
+		refresh()
+
+	func refresh() -> void:
+		listening = false
+		text = OS.get_keycode_string(_settings.key(_action))
+
+	func _input(event: InputEvent) -> void:
+		if not listening or not event.is_pressed() or event.is_echo():
+			return
+		if event is InputEventJoypadButton:
+			get_viewport().set_input_as_handled()
+			refresh()
+		elif event is InputEventKey:
+			get_viewport().set_input_as_handled()
+			if event.physical_keycode == KEY_ESCAPE:
+				refresh()
+				return
+			_settings.bind(_action, event.physical_keycode)
+			_settings.apply_keys()
+			_bound.call()

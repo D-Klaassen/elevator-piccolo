@@ -1,7 +1,8 @@
 extends "res://tests/scene_test.gd"
 ## Headless scripted test of playing with a controller: the right stick turns the view (as
-## fast as the look sensitivity says), the left stick walks, A presses the button you look
-## at, Start pauses, the D-pad moves through the menu and B closes it. In a chat the D-pad
+## fast as the controller sensitivity says, and the other way up when inverted), the left
+## stick walks, A presses the button you look at, Start pauses, the D-pad moves through the
+## menu and the settings, LB/RB switch the settings' tabs and B goes back. In a chat the D-pad
 ## or the left stick moves through the replies and A says one, while the sticks can't walk
 ## you away or turn the view off the guest.
 ##
@@ -24,12 +25,23 @@ func _test_look() -> void:
 	var turned := start - player.rotation.y
 	_check(turned > 0.5, "the right stick turns the view right (%.2f rad in 0.5 s)" % turned)
 
-	player.look_sensitivity = 2.0
+	player.stick_sensitivity = 2.0
 	start = player.rotation.y
 	await _hold_stick(JOY_AXIS_RIGHT_X, 1.0, 0.5)
 	var faster := start - player.rotation.y
-	_check(faster > 1.6 * turned, "twice the look sensitivity turns about twice as far (%.2f rad)" % faster)
-	player.look_sensitivity = 1.0
+	_check(faster > 1.6 * turned, "twice the controller sensitivity turns about twice as far (%.2f rad)" % faster)
+	player.stick_sensitivity = 1.0
+
+	var camera := player.get_viewport().get_camera_3d()
+	camera.rotation.x = 0.0
+	await _hold_stick(JOY_AXIS_RIGHT_Y, -1.0, 0.2)
+	_check(camera.rotation.x > 0.1, "pushing the right stick up looks up")
+	camera.rotation.x = 0.0
+	player.invert_y = true
+	await _hold_stick(JOY_AXIS_RIGHT_Y, -1.0, 0.2)
+	_check(camera.rotation.x < -0.1, "inverted it looks down")
+	player.invert_y = false
+	camera.rotation.x = 0.0
 
 	start = player.rotation.y
 	await _hold_stick(JOY_AXIS_RIGHT_X, 0.1, 0.5)
@@ -55,30 +67,43 @@ func _test_press() -> void:
 
 
 func _test_menu() -> void:
-	var menu: SettingsMenu = _scene.find_child("SettingsMenu", true, false)
+	var menu: GameMenu = _scene.find_child("GameMenu", true, false)
 	await _tap(JOY_BUTTON_START)
-	_check(menu.visible and paused, "Start pauses and opens the menu")
-	var close := menu.find_child("Close", true, false) as Button
-	var slider := menu.find_child("LookSensitivity", true, false) as HSlider
-	var smooth := menu.find_child("AntiAliasing", true, false) as CheckButton
-	_check(close.has_focus(), "with Resume focused")
-	await _tap(JOY_BUTTON_DPAD_UP)
-	_check(smooth.has_focus(), "D-pad up moves to the Smooth edges switch")
+	_check(menu.screen == "main" and paused, "Start pauses and opens the menu")
+	_check(_focused() and _focused().name == "Resume", "with Resume focused")
+	await _tap(JOY_BUTTON_DPAD_DOWN)
+	_check(_focused().name == "Settings", "D-pad down moves to Settings")
 	await _tap(JOY_BUTTON_A)
-	_check(not smooth.button_pressed and root.msaa_3d == Viewport.MSAA_DISABLED, "A switches it off")
-	await _tap(JOY_BUTTON_A)
-	_check(smooth.button_pressed and root.msaa_3d == Viewport.MSAA_2X, "and on again")
-	await _tap(JOY_BUTTON_DPAD_UP)
-	_check(slider.has_focus(), "D-pad up again moves to the look sensitivity slider")
+	_check(menu.screen == "settings" and _focused().name == "display_mode", "A opens the settings, on the first one")
+	await _tap(JOY_BUTTON_RIGHT_SHOULDER)
+	await _tap(JOY_BUTTON_RIGHT_SHOULDER)
+	_check(_focused().name == "MouseSensitivity", "RB twice opens the Controls tab, on the mouse sensitivity")
+	await _tap(JOY_BUTTON_DPAD_DOWN)
+	var slider := _focused() as HSlider
+	_check(slider and slider.name == "StickSensitivity", "D-pad down moves to the controller sensitivity")
 	var before := slider.value
 	await _tap(JOY_BUTTON_DPAD_LEFT)
-	_check(slider.value < before, "D-pad left turns it down (%.2f to %.2f)" % [before, slider.value])
+	_check(slider.value < before and _player().stick_sensitivity == slider.value, "D-pad left turns it down (%.2f to %.2f)" % [before, slider.value])
+	await _tap(JOY_BUTTON_DPAD_DOWN)
+	_check(_focused().name == "invert_y", "D-pad down again moves to Invert look up/down")
+	await _tap(JOY_BUTTON_A)
+	_check(_player().invert_y and (_focused() as Button).text.contains("On"), "A switches it on")
+	await _tap(JOY_BUTTON_DPAD_RIGHT)
+	_check(not _player().invert_y, "and D-pad right off again")
+	await _tap(JOY_BUTTON_LEFT_SHOULDER)
+	_check(_focused().name == "Volume", "LB goes back to the Audio tab")
 	await _tap(JOY_BUTTON_B)
-	_check(not menu.visible and not paused, "B closes the menu and the shift goes on")
+	_check(menu.screen == "main" and _focused().name == "Settings", "B goes back to the pause menu, on Settings")
+	await _tap(JOY_BUTTON_B)
+	_check(not menu.is_open() and not paused, "B again closes it and the shift goes on")
 
 	await _tap(JOY_BUTTON_START)
 	await _tap(JOY_BUTTON_A)
-	_check(not menu.visible and not paused, "A on Resume does too")
+	_check(not menu.is_open() and not paused, "A on Resume does too")
+
+
+func _focused() -> Control:
+	return root.gui_get_focus_owner()
 
 
 func _test_chat() -> void:

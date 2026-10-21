@@ -27,7 +27,7 @@ const CAB_SLOTS: Array[Vector3] = [
 const LANDING_Z := 1.8 ## just in front of the landing opening
 const CAB_DOOR_Z := 0.5 ## just inside the cab doors
 const HALL_END_Z := 4.4 ## where guests come from and go to
-const REPLY_TIME := 6.0 ## seconds a guest waits for your reply, after which you blurt one out
+const REPLY_TIME := 6.0 ## seconds a guest waits for your reply by default, after which you blurt one out
 ## How likely you blurt out each kind of reply when time runs out, by [enum Guest.Reply]:
 ## a little worse than picking blind.
 const BLURT_ODDS: Array[float] = [0.3, 0.3, 0.4]
@@ -45,6 +45,9 @@ const AGAIN_COST := 5.0 ## seconds of patience it costs a guest to say it again
 @export var spanish_share := 0.0
 ## Spanish lessons taken: how much of a Spanish guest you catch.
 @export var spanish_lessons := 0
+## Seconds a guest waits for your reply before you blurt one out; 0 waits for ever. Set from
+## [method Settings.reply_seconds].
+@export var reply_time := REPLY_TIME
 
 var elevator: Elevator
 var rng := RandomNumberGenerator.new()
@@ -61,7 +64,7 @@ func _process(delta: float) -> void:
 		_lose_patience(delta)
 	_update_calls()
 
-	if talking_to:
+	if talking_to and reply_time > 0.0:
 		_reply_left -= delta
 		if _reply_left <= 0.0:
 			_blurt()
@@ -313,7 +316,7 @@ func _start_chat(guest: Guest) -> void:
 	talking_to = guest
 	guest.chatted = true
 	guest.offers = _offers_for(guest)
-	_reply_left = REPLY_TIME
+	_reply_left = reply_time
 	if guest.language == "es":
 		var heard := Spanish.hear(guest.chat.line, spanish_lessons, rng)
 		guest.say(heard.heard, heard.understood)

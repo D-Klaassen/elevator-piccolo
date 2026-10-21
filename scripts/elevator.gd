@@ -120,9 +120,11 @@ func _ready() -> void:
 	_ding_player.stream = make_ding()
 	# Keep ringing through the end-of-shift pause: a paused ding never finishes and leaks at quit.
 	_ding_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	_ding_player.bus = Settings.effects_bus()
 	add_child(_ding_player)
 	_chime_player = AudioStreamPlayer.new()
 	_chime_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	_chime_player.bus = Settings.effects_bus()
 	add_child(_chime_player)
 	_set_doors(true, true)
 
