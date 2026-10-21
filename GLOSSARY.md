@@ -7,7 +7,7 @@ A first-person game about running a hotel elevator: you take guests to their flo
 ### Assets
 
 **Asset**:
-Anything the game shows or plays that could be judged and changed on its own: a Kenney model, a piece built in code (cab, door panel, floor display, call button, lamp, trim), a hotel's surface pattern, or a sound made in code.
+Anything the game shows or plays that could be judged and changed on its own: a Kenney model, a piece built in code (cab, door panel, floor display, call button, lamp, trim), a hotel's surface texture, or a sound made in code.
 _Avoid_: Model (only one kind of asset), resource, prop
 
 **Asset name**:
