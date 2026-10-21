@@ -25,6 +25,8 @@ var _hint_timer: SceneTreeTimer
 var _shift: Shift
 var _career: Career
 var _floors: int
+## PROTOTYPE: the menu prototype, when the game was started with --menu-prototype.
+var _menu_prototype: MenuPrototype
 ## True from the end of the shift (or a return from the Asset room to the staff room) until
 ## the next shift starts.
 var _between_shifts := false
@@ -101,6 +103,8 @@ func _ready() -> void:
 		AssetRoom.back_to_staff_room = false
 		_take_a_break()
 		_staff_room.show_for(_career)
+	elif MenuPrototype.requested():
+		_menu_prototype = MenuPrototype.install(self)
 
 
 func _build_hud() -> void:
@@ -276,6 +280,9 @@ func _on_started() -> void:
 
 
 func _on_pause_requested() -> void:
+	if _menu_prototype:
+		_menu_prototype.open(MenuPrototype.Context.PAUSE)
+		return
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_settings_menu.open(SettingsMenu.Where.SHIFT)
