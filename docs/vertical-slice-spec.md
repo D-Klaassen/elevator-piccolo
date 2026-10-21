@@ -23,12 +23,13 @@ You are the elevator attendant (piccolo) in first person: greet guests, work out
 
 ## Languages
 
-- You know English. English guests: greet, then you pick a friendly / neutral / rude reply.
+- You know English. About 1 in 5 guests strikes up a chat when you ask their floor; you pick a reply (6 s, else you blurt one out), and it changes the tip. While you talk you stand facing them and everyone's patience waits.
 - Spanish guests speak real Spanish that you only half-hear: missed words ("…") and words spelled the way they sound.
 - Guests are helpful, neutral or don't try. Hints are hard: an occasional English clue word, mostly mimes; fingers when you ask a helpful guest again ("Sorry, again?" costs patience).
 - Spanish takes 5 lessons. Each helps only a little, and the useful words come late. Known words appear spelled correctly, with their English underneath; lesson 5 gives full subtitles.
+- Spanish guests chat too. Speaking comes harder than hearing: with few lessons you can only nod along ("Sí, sí…") or try one of the real replies; from lesson 4 you can say them all.
 
-→ [language guessing](../.wayfinder/tickets/03-language-guessing.md) · playable reference: branch `prototype/language-guessing`
+→ [language guessing](../.wayfinder/tickets/03-language-guessing.md) · [guest chats](../.wayfinder/tickets/08-guest-chats.md) · playable reference: branch `prototype/language-guessing`
 
 ## Demo content
 

@@ -41,6 +41,72 @@ const FINGERS: Array[String] = [
 	"points down", "holds up one finger", "holds up two fingers", "holds up three fingers",
 	"holds up four fingers", "holds up five fingers", "holds up six fingers",
 ]
+## What a chatty Spanish guest says, as [Spanish, English], and the replies you can try,
+## in [enum Guest.Reply] order. They show in English: what you'd try to say. More will
+## come, see [code].wayfinder/tickets/08-guest-chats.md[/code].
+const CHATS: Array[Dictionary] = [
+	{"line": ["¡Qué calor hace hoy!", "It's so hot today!"], "replies": [
+		"The pool is nice and cool right now.",
+		"Yes, it's warm.",
+		"Tomorrow will be even hotter, they say.",
+	]},
+	{"line": ["Es mi primera vez en este hotel.", "It's my first time at this hotel."], "replies": [
+		"Welcome! Try the rooftop at sunset.",
+		"I hope you like it.",
+		"The rooms are a bit small, I'm afraid.",
+	]},
+	{"line": ["Estoy muy cansado, el viaje fue largo.", "I'm very tired, the journey was long."], "replies": [
+		"Then let's get you upstairs quickly.",
+		"Long trips are tiring.",
+		"Where did you travel from? Tell me all!",
+	]},
+	{"line": ["Mis hijos no quieren dormir.", "My kids don't want to sleep."], "replies": [
+		"A swim tires them out, trust me.",
+		"Kids are like that.",
+		"Yes, we can hear them all over.",
+	]},
+	{"line": ["¿Hay un buen restaurante cerca?", "Is there a good restaurant nearby?"], "replies": [
+		"Ours does a great paella. Book a table!",
+		"There are a few in town.",
+		"I just eat in the staff room.",
+	]},
+	{"line": ["Perdí mi llave otra vez.", "I lost my key again."], "replies": [
+		"Reception will make you a new one.",
+		"That happens.",
+		"Again? That will cost you, I think.",
+	]},
+	{"line": ["¡Me encanta la música de este ascensor!", "I love the music in this elevator!"], "replies": [
+		"Thank you! I picked it myself.",
+		"It's not bad.",
+		"Really? I can't stand it anymore.",
+	]},
+	{"line": ["Tengo prisa, mi taxi ya está aquí.", "I'm in a hurry, my taxi is already here."], "replies": [
+		"Hold on, we're nearly there.",
+		"Okay.",
+		"Did you know this lift is a century old?",
+	]},
+	{"line": ["¿A qué hora cierra la piscina?", "What time does the pool close?"], "replies": [
+		"At eight. Plenty of time for a swim.",
+		"Best to ask at reception.",
+		"Early. Too early, if you ask me.",
+	]},
+	{"line": ["Hace mucho frío en mi habitación.", "It's very cold in my room."], "replies": [
+		"I'll have a heater sent up right away.",
+		"Try the thermostat.",
+		"Wear a jumper, that's what I do.",
+	]},
+]
+## What a Spanish guest says back, by how well your reply landed, as [Spanish, English].
+const REACTIONS: Array[Array] = [
+	[["¡Muy amable!", "Very kind!"], ["¡Qué bien!", "How nice!"]],
+	[["Vale.", "Okay."], ["Bueno.", "Well."]],
+	[["¿Perdón?", "Pardon?"], ["¡Qué grosero!", "How rude!"]],
+]
+## What you can always say in a Spanish chat, however few lessons you've had. Counts as neutral.
+const SI_SI := "Sí, sí… (nod along)"
+## How many of a chat's real replies you can say, by lessons taken: speaking comes harder
+## than hearing.
+const SAYABLE: Array[int] = [1, 1, 2, 2, 3, 3]
 ## How hard a guest tries: the chance of an English clue word and of a gesture.
 const HELPFULNESS := {
 	"helpful": {"clue": 0.35, "gesture": 0.4},
@@ -54,21 +120,29 @@ const LESSONS: Array[Dictionary] = [
 		"por": "for", "favor": "please", "gracias": "thanks", "donde": "where", "mi": "my", "la": "the",
 		"el": "the", "al": "to the", "a": "to", "en": "in", "un": "a", "una": "a", "con": "with",
 		"los": "the", "del": "of the", "me": "me", "se": "one", "puede": "can", "aqui": "here",
-		"para": "for", "poco": "little", "mucha": "much",
+		"para": "for", "poco": "little", "mucha": "much", "que": "what", "hoy": "today",
+		"muy": "very", "este": "this", "mis": "my", "no": "not", "de": "of", "ya": "already",
+		"otra": "another", "vez": "time", "cerca": "near", "mucho": "very", "vale": "okay",
+		"bueno": "well", "bien": "nice", "perdon": "pardon", "amable": "kind", "grosero": "rude",
 	}},
 	{"name": "common verbs", "words": {
 		"quiero": "I want", "voy": "I go", "ir": "to go", "vamos": "we go", "nadar": "swim",
 		"cenar": "dine", "tomar": "have", "relajarme": "relax", "tengo": "I have", "espera": "waits",
-		"esta": "is",
+		"esta": "is", "hace": "it is", "es": "is", "estoy": "I am", "fue": "was",
+		"quieren": "want", "dormir": "sleep", "hay": "is there", "perdi": "I lost",
+		"encanta": "love", "cierra": "closes",
 	}},
 	{"name": "floors and numbers", "words": {
 		"primer": "first", "segundo": "second", "piso": "floor", "planta": "floor", "baja": "ground",
-		"arriba": "up", "todo": "all",
+		"arriba": "up", "todo": "all", "primera": "first", "hora": "time",
 	}},
 	{"name": "hotel places", "words": {
 		"recepcion": "reception", "habitacion": "room", "restaurante": "restaurant", "piscina": "pool",
 		"azotea": "rooftop", "terraza": "terrace", "masaje": "massage", "hambre": "hunger",
-		"ninos": "kids", "copa": "drink", "cita": "appointment", "taxi": "taxi",
+		"ninos": "kids", "copa": "drink", "cita": "appointment", "taxi": "taxi", "hotel": "hotel",
+		"ascensor": "elevator", "llave": "key", "musica": "music", "hijos": "kids", "viaje": "trip",
+		"calor": "heat", "frio": "cold", "cansado": "tired", "largo": "long", "buen": "good",
+		"prisa": "hurry",
 	}},
 	{"name": "fluent: full subtitles", "words": {}},
 ]
@@ -132,6 +206,11 @@ static func hear(line: Array, lessons: int, rng: RandomNumberGenerator) -> Dicti
 	while english.contains("%s %s" % [MISS, MISS]):
 		english = english.replace("%s %s" % [MISS, MISS], MISS)
 	return {"heard": " ".join(heard), "understood": english}
+
+
+## How many of a chat's real replies you can say after [param lessons] lessons.
+static func replies_you_can_say(lessons: int) -> int:
+	return SAYABLE[clampi(lessons, 0, SAYABLE.size() - 1)]
 
 
 static func _strip_accents(text: String) -> String:

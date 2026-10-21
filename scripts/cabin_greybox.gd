@@ -81,8 +81,8 @@ func _ready() -> void:
 	_build_hud()
 	elevator.hint.connect(_show_hint)
 	guests.said.connect(_show_hint)
-	guests.chatting.connect(_replies.show_for)
-	guests.reply_closed.connect(_replies.close)
+	guests.chatting.connect(_on_chatting)
+	guests.reply_closed.connect(_on_chat_over)
 	_replies.chosen.connect(guests.reply)
 	_shift.announced.connect(_show_hint)
 	_shift.clock_changed.connect(_on_clock_changed)
@@ -206,6 +206,19 @@ func _update_help() -> void:
 
 func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
 	_update_help()
+
+
+## A guest strikes up a chat: you stand still facing them, and pick a reply.
+func _on_chatting(guest: Guest) -> void:
+	_player.focus_on(guest)
+	if guest.state == Guest.State.WAITING or guest.state == Guest.State.RIDING:
+		guest.face(_player.global_position)
+	_replies.show_for(guest)
+
+
+func _on_chat_over() -> void:
+	_replies.close()
+	_player.release()
 
 
 func _on_looking_at_changed(text: String) -> void:
