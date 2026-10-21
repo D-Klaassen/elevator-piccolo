@@ -9,8 +9,9 @@ extends Node3D
 ## judge sizes by: the characters (press interact on one to go through its animations), the
 ## furniture, the parts of the cab and the doors (press an elevator door to open or close
 ## it), a sample corner per hotel (a hallway built by the same code as the game's
-## ([Hallway]), open on the aisle side, with a working elevator in it) and the sounds (press
-## a button to hear it). The models are picked up from the asset folders, so a new one
+## ([Hallway]), open on the aisle side, with a working elevator in it) and the sounds, the
+## music box's tracks among them (press a button to hear it). The models are picked up
+## from the asset folders, so a new one
 ## shows up on its own.
 ##
 ## Esc opens the Settings menu, whose Walk speed slider lets you walk up to
@@ -92,6 +93,8 @@ func _ready() -> void:
 	_place(_sound("ding", Elevator.make_ding()), true)
 	_place(_sound("chime going up", Elevator.make_chime(false)), false)
 	_place(_sound("chime going down", Elevator.make_chime(true)), true)
+	for track in MusicBox.TRACKS:
+		_place(_sound("music: %s" % track.name, load(track.path)), _left_x <= _right_x)
 	_build_room(maxf(_left_x, _right_x) + 1.0)
 
 	_player = Player.new()
@@ -290,8 +293,11 @@ func _sound(asset_name: String, stream: AudioStream) -> Node3D:
 	return holder
 
 
+## Plays the sound [param asset_name], cutting off any other still playing.
 func _play(asset_name: String) -> void:
 	played.append(asset_name)
+	for sound: AudioStreamPlayer in _sounds.values():
+		sound.stop()
 	# The headless (Dummy) audio driver never finishes a sound, which leaks it at quit.
 	if AudioServer.get_driver_name() != "Dummy":
 		(_sounds[asset_name] as AudioStreamPlayer).play()
@@ -323,6 +329,8 @@ func _sample_corner(hotel: Dictionary) -> void:
 	elevator.music_level = Upgrades.max_level(Upgrades.MUSIC)
 	elevator.call_panel_level = Upgrades.max_level(Upgrades.CALLS)
 	corner.add_child(elevator)
+	# Its music is in the Sounds section: two cabs playing at once would drown each other out.
+	elevator.music_box().stop()
 	_name_corner(corner, elevator, hotel)
 	_left_x += back + Elevator.CAB_HALF_WIDTH + 0.2 + SECTION_GAP
 	_right_x = maxf(_right_x, _left_x)

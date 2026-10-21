@@ -62,7 +62,7 @@ const CLOSING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.2, 1), Vector2(0
 ## Seconds the doors take to open; closing takes [constant CLOSE_SLOWER] times as long.
 ## Faster doors lower it.
 @export var door_time := DOOR_TIME
-## Level of the music upgrade: 0 is a silent cab, from 1 a music box hangs on the back wall.
+## Level of the music upgrade: 0 is a silent cab, from 1 a [MusicBox] plays on the back wall.
 @export var music_level := 0
 ## How many guests fit, shown on the plate by the buttons.
 @export var capacity := 3
@@ -102,6 +102,7 @@ var _call_states: Array[CallLamp] = []
 var _blink_time := 0.0
 var _ding_player: AudioStreamPlayer
 var _chime_player: AudioStreamPlayer
+var _music_box: MusicBox
 
 
 func _ready() -> void:
@@ -336,8 +337,8 @@ func _build_call_panel() -> void:
 	_update_call_lamps(0.0)
 
 
-## What the upgrades add to the cab: the capacity plate and, once bought, the music box (a
-## radio from Kenney's Furniture Kit, with speakers at the higher levels).
+## What the upgrades add to the cab: the capacity plate and, once bought, the [MusicBox]
+## on a shelf high on the back wall.
 func _build_fittings() -> void:
 	var panel_x := -(CAB_HALF_WIDTH - WALL / 2 - 0.02)
 	var plate := Greybox.label(_cab, "Max %d persons" % capacity, Vector3(panel_x, 0.8, 0.6), 90.0, 18)
@@ -345,24 +346,14 @@ func _build_fittings() -> void:
 	plate.modulate = Color(0.95, 0.9, 0.8)
 	if music_level == 0:
 		return
-	# A shelf high on the back wall: a radio, then a pair of speakers beside it, then a
-	# second pair on the side walls.
-	var music_box := Node3D.new()
-	music_box.name = "MusicBox"
-	music_box.position = Vector3(0, CAB_HEIGHT - 0.6, -(CAB_HALF_WIDTH - WALL / 2 - 0.15))
-	_cab.add_child(music_box)
-	Greybox.box(music_box, Vector3(1.3, 0.04, 0.3), Vector3(0, -0.02, 0), Color(0.35, 0.24, 0.15), false)
-	Decor.put(music_box, "radio", Vector3.ZERO)
-	if music_level >= 2:
-		for x in [-0.5, 0.5]:
-			Decor.put(music_box, "speakerSmall", Vector3(x, 0, 0))
-	if music_level >= 3:
-		for side in [-1.0, 1.0]:
-			var shelf_x: float = side * (CAB_HALF_WIDTH - WALL / 2 - 0.12)
-			Greybox.box(music_box, Vector3(0.24, 0.04, 0.3), Vector3(shelf_x, -0.02, 0.6), Color(0.35, 0.24, 0.15), false)
-			Decor.put(music_box, "speakerSmall", Vector3(shelf_x, 0, 0.6), -90.0 * side)
-	var note := Greybox.label(music_box, "♪".repeat(music_level), Vector3(0, -0.12, 0.16), 0.0, 40)
-	note.modulate = Color(1, 0.85, 0.4)
+	_music_box = MusicBox.new(music_level)
+	_music_box.position = Vector3(0, CAB_HEIGHT - 0.6, -(CAB_HALF_WIDTH - WALL / 2 - 0.15))
+	_cab.add_child(_music_box)
+
+
+## The music box playing in the cab, or null at music level 0.
+func music_box() -> MusicBox:
+	return _music_box
 
 
 ## A soft hall-lantern chime, generated like the ding: one tone, or a high and a lower one
