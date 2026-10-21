@@ -15,4 +15,14 @@ The hallway and cab patterns (logs, planks, wallpaper, carpet, panelling, the ch
 
 ## Sound
 
-The call ding is generated in code (`scripts/elevator.gd`). There's no music yet.
+The call ding and the arrival chime are generated in code (`scripts/elevator.gd`).
+
+## Music
+
+Placeholders for the vertical slice, all CC0, which needs no credit, but we give it anyway. Before release a composer writes the real music (see `.wayfinder/tickets/04-elevator-music.md`).
+
+| Track | By | License | Source | In the repo |
+|---|---|---|---|---|
+| Bossa Nova (8-bit bossa, about 1 min), music level 1 | Joth | CC0 1.0 | [opengameart.org/content/bossa-nova](https://opengameart.org/content/bossa-nova), downloaded 2026-10-21 | `assets/music/joth-bossa-nova.mp3` |
+| Somewhere in the Elevator (about 1 min), music level 2 | Peachtea (You're Perfect Studio) | CC0 1.0 (one of the licenses on offer; CC-BY is another) | [opengameart.org/content/somewhere-in-the-elevator](https://opengameart.org/content/somewhere-in-the-elevator), downloaded 2026-10-21 | `assets/music/peachtea-somewhere-in-the-elevator.ogg` |
+| Two Left Socks (bossa nova, about 3 min), music level 3 | congusbongus | CC0 1.0 | [opengameart.org/content/two-left-socks](https://opengameart.org/content/two-left-socks), downloaded 2026-10-21 | `assets/music/congusbongus-two-left-socks.ogg` |
