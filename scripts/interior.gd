@@ -73,9 +73,11 @@ static func style(hotel_id: String) -> Dictionary:
 
 ## A material that lays [param surface] ([name, metres, texture set, tint]) over any box.
 ## [param moving] boxes (the cab's and its doors') get the texture fixed to themselves;
-## still ones get it fixed in the world, so it runs on from one box to the next.
-static func material(surface: Array, moving := false) -> StandardMaterial3D:
-	var key := "%s|%s" % [str(surface), moving]
+## still ones get it fixed in the world, so it runs on from one box to the next. A moving
+## box centred [param at] in what it moves with gets the texture shifted to match, so it
+## runs on across the cab's boxes too.
+static func material(surface: Array, moving := false, at := Vector3.ZERO) -> StandardMaterial3D:
+	var key := "%s|%s|%s" % [str(surface), moving, at]
 	if _materials.has(key):
 		return _materials[key]
 	var maps: String = TEXTURES + surface[2]
@@ -100,6 +102,7 @@ static func material(surface: Array, moving := false) -> StandardMaterial3D:
 	mat.uv1_world_triplanar = not moving
 	mat.uv1_triplanar_sharpness = 8.0
 	mat.uv1_scale = Vector3.ONE / float(surface[1])
+	mat.uv1_offset = at / float(surface[1])
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	_materials[key] = mat
 	return mat
