@@ -81,6 +81,13 @@ func guests() -> Array[Guest]:
 	return _guests.duplicate()
 
 
+## Takes every guest out of the hotel at once, without a word: none pays or complains.
+func clear() -> void:
+	for guest in _guests.duplicate():
+		_remove(guest)
+	_update_calls()
+
+
 ## Answers the guest who is waiting for a reply. Does nothing when nobody is.
 func reply(choice: Guest.Reply) -> void:
 	if talking_to == null:

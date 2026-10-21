@@ -1,14 +1,11 @@
 extends Node3D
 ## The hotel you work in (the rustic cabin, then Pension Bellevue and up), built from boxes
-## and dressed in its own style ([Interior]): a shaft with a hallway on every floor, the
-## elevator cab, the player standing inside it, the guests, the shift and a minimal HUD.
+## by [Hallway] and dressed in its own style ([Interior]): a shaft with a hallway on every
+## floor, the elevator cab, the player standing inside it, the guests, the shift and a
+## minimal HUD.
 ## Every shift loads the saved career, fits the cab with the upgrades bought, and saves the
 ## career again once the shift is over. Between shifts you go through the staff room.
 ## Esc pauses the shift and opens the settings.
-
-const HALL_WIDTH := 6.0
-const HALL_DEPTH := 4.0
-const SHAFT_FRONT := 1.1 ## z where the landing wall starts, just in front of the cab
 
 var _hint_label: Label
 var _help_label: Label
@@ -16,6 +13,7 @@ var _crosshair: Label
 var _looking_label: Label
 var _clock_label: Label
 var _stats_label: Label
+var _debug_label: Label
 var _report: ShiftReport
 var _staff_room: StaffRoom
 var _end_screen: EndScreen
@@ -27,6 +25,9 @@ var _hint_timer: SceneTreeTimer
 var _shift: Shift
 var _career: Career
 var _floors: int
+## True from the end of the shift (or a return from the Asset room to the staff room) until
+## the next shift starts.
+var _between_shifts := false
 
 
 func _ready() -> void:
@@ -38,10 +39,10 @@ func _ready() -> void:
 	_settings.apply_volume()
 	var hotel := _career.hotel_info()
 	_floors = hotel.floors
-	_build_environment()
-	_build_shaft()
+	Hallway.build_environment(self)
+	Hallway.build_shaft(self, _floors)
 	for f in _floors:
-		_build_landing(f)
+		Hallway.build(self, hotel, f)
 
 	var elevator := Elevator.new()
 	elevator.name = "Elevator"
@@ -50,7 +51,7 @@ func _ready() -> void:
 	elevator.music_level = _career.level(Upgrades.MUSIC)
 	elevator.capacity = Upgrades.CAPACITY[_career.level(Upgrades.CAB)]
 	elevator.call_panel_level = _career.level(Upgrades.CALLS)
-	elevator.landing_z = SHAFT_FRONT + 0.05 # the landing walls' middle, see _build_landing
+	elevator.landing_z = Hallway.LANDING_Z
 	add_child(elevator)
 
 	var guests := GuestManager.new()
@@ -95,80 +96,10 @@ func _ready() -> void:
 		_show_hint("Your shift starts. A ding means a guest is calling: find out on which floor.")
 	if Benchmark.active:
 		add_child(Benchmark.new())
-
-
-func _build_environment() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.08, 0.07, 0.06)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.5, 0.45, 0.4)
-	env.ambient_light_energy = 0.6
-	var world_env := WorldEnvironment.new()
-	world_env.environment = env
-	add_child(world_env)
-
-
-func _build_shaft() -> void:
-	var color := Color(0.25, 0.25, 0.27)
-	var height := _floors * Elevator.FLOOR_HEIGHT + 1.0
-	var center_y := height / 2 - 1.0
-	var outer := Elevator.CAB_HALF_WIDTH + 0.15
-	# Pit floor, back and side walls around the cab.
-	Greybox.box(self, Vector3(2 * outer, 0.2, 2 * outer), Vector3(0, -1.1, 0), color)
-	Greybox.box(self, Vector3(2 * outer, height, 0.1), Vector3(0, center_y, -outer), color)
-	Greybox.box(self, Vector3(0.1, height, 2 * outer), Vector3(-outer, center_y, 0), color)
-	Greybox.box(self, Vector3(0.1, height, 2 * outer), Vector3(outer, center_y, 0), color)
-
-
-func _build_landing(f: int) -> void:
-	var y := f * Elevator.FLOOR_HEIGHT
-	var hotel_id: String = _career.hotel_info().id
-	var look := Interior.style(hotel_id)
-	var floor_surface := Interior.material(look.floor)
-	var wall_surface := Interior.material(look.wall)
-	var wall_h := Elevator.FLOOR_HEIGHT - 0.2
-	var front := Elevator.CAB_HALF_WIDTH + 0.05
-	var back := front + HALL_DEPTH
-
-	# Hallway floor; it also acts as the ceiling of the hallway below.
-	Greybox.box(self, Vector3(HALL_WIDTH, 0.2, HALL_DEPTH), Vector3(0, y - 0.1, front + HALL_DEPTH / 2), Color.WHITE, true, floor_surface)
-
-	# Landing wall facing the hallway, with an opening in front of the cab door.
-	var half := HALL_WIDTH / 2
-	var opening := Elevator.DOOR_OPENING / 2
-	var side := half - opening
-	var wall_z := SHAFT_FRONT + 0.05
-	Greybox.box(self, Vector3(side, wall_h, 0.1), Vector3(-(opening + side / 2), y + wall_h / 2, wall_z), Color.WHITE, true, wall_surface)
-	Greybox.box(self, Vector3(side, wall_h, 0.1), Vector3(opening + side / 2, y + wall_h / 2, wall_z), Color.WHITE, true, wall_surface)
-	var lintel_h := wall_h - Elevator.DOOR_HEIGHT
-	Greybox.box(self, Vector3(Elevator.DOOR_OPENING, lintel_h, 0.1), Vector3(0, y + Elevator.DOOR_HEIGHT + lintel_h / 2, wall_z), Color.WHITE, true, wall_surface)
-
-	# Hallway side and back walls.
-	Greybox.box(self, Vector3(0.1, wall_h, HALL_DEPTH), Vector3(-half, y + wall_h / 2, front + HALL_DEPTH / 2), Color.WHITE, true, wall_surface)
-	Greybox.box(self, Vector3(0.1, wall_h, HALL_DEPTH), Vector3(half, y + wall_h / 2, front + HALL_DEPTH / 2), Color.WHITE, true, wall_surface)
-	Greybox.box(self, Vector3(HALL_WIDTH, wall_h, 0.1), Vector3(0, y + wall_h / 2, back), Color.WHITE, true, wall_surface)
-
-	# Floor sign on the back wall, facing the elevator (-Z).
-	var places: Array = _career.hotel_info().places
-	var sign_text := "Floor %d" % f if places.is_empty() else "Floor %d · %s" % [f, places[f]]
-	var sign_label := Greybox.label(self, sign_text, Vector3(0, y + 2.0, back - 0.06), 180.0, 96 if places.is_empty() else 72)
-
-	# Skirting, door frame, ceiling and lamp: looks only, no collision.
-	var trim := Node3D.new()
-	trim.name = "Trim%d" % f
-	add_child(trim)
-	Interior.trim_hallway(trim, hotel_id, y, wall_h, half, wall_z, back, sign_label)
-
-	var furniture := Node3D.new()
-	furniture.name = "Furniture%d" % f
-	add_child(furniture)
-	Decor.furnish(furniture, "" if places.is_empty() else places[f], y)
-
-	var light := OmniLight3D.new()
-	light.position = Vector3(0, y + wall_h - 0.4, front + HALL_DEPTH / 2)
-	light.omni_range = 5.0
-	add_child(light)
+	if AssetRoom.back_to_staff_room:
+		AssetRoom.back_to_staff_room = false
+		_take_a_break()
+		_staff_room.show_for(_career)
 
 
 func _build_hud() -> void:
@@ -222,6 +153,14 @@ func _build_hud() -> void:
 	_stats_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	hud.add_child(_stats_label)
 
+	_debug_label = Label.new()
+	_debug_label.name = "DebugLabel"
+	_debug_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_debug_label.position += Vector2(16, 12)
+	_debug_label.modulate = Color(1, 0.45, 0.3)
+	_debug_label.text = DebugOptions.label()
+	hud.add_child(_debug_label)
+
 	_replies = ReplyChoices.new()
 	_replies.name = "ReplyChoices"
 	hud.add_child(_replies)
@@ -250,6 +189,8 @@ func _build_hud() -> void:
 	_settings_menu.pause_requested.connect(_on_pause_requested)
 	_settings_menu.changed.connect(_on_settings_changed)
 	_settings_menu.closed.connect(_on_settings_closed)
+	_settings_menu.end_shift_requested.connect(_shift.end_now)
+	_settings_menu.asset_room_requested.connect(func() -> void: AssetRoom.enter(get_tree(), _between_shifts))
 	_staff_room.settings_opened.connect(_on_staff_room_settings)
 	hud.add_child(_settings_menu)
 
@@ -282,14 +223,20 @@ func _on_stats_changed() -> void:
 
 
 func _on_shift_ended() -> void:
+	_take_a_break()
+	_career.record(_shift)
+	_save_career()
+	_report.show_for(_shift, _career)
+
+
+## Stops the hotel between shifts, for the report and the staff room.
+func _take_a_break() -> void:
+	_between_shifts = true
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_crosshair.hide()
 	_looking_label.text = ""
 	_hint_label.text = ""
-	_career.record(_shift)
-	_save_career()
-	_report.show_for(_shift, _career)
 
 
 func _on_continued() -> void:
@@ -317,21 +264,22 @@ func _on_started() -> void:
 func _on_pause_requested() -> void:
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_settings_menu.open(true)
+	_settings_menu.open(SettingsMenu.Where.SHIFT)
 
 
 func _on_staff_room_settings() -> void:
 	_staff_room.hide()
-	_settings_menu.open(false)
+	_settings_menu.open(SettingsMenu.Where.STAFF_ROOM)
 
 
 func _on_settings_changed() -> void:
 	_player.look_sensitivity = _settings.look_sensitivity
+	_debug_label.text = DebugOptions.label()
 
 
 ## Back to the staff room if it opened the menu, otherwise back to the shift.
 func _on_settings_closed() -> void:
-	if _shift.is_over:
+	if _between_shifts:
 		_staff_room.show_for(_career)
 		return
 	get_tree().paused = false

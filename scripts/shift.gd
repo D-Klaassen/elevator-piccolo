@@ -81,6 +81,19 @@ func _process(delta: float) -> void:
 		_end()
 
 
+## Ends the shift straight away, scored as it stands: the guests still in the hotel are
+## gone without paying or complaining, and nobody else turns up. For
+## [DebugOptions]' End shift now.
+func end_now() -> void:
+	if is_over:
+		return
+	_schedule.clear()
+	guests.clear()
+	minutes = END
+	clock_changed.emit(END)
+	_end()
+
+
 func money() -> float:
 	return fares + tips + wage
 

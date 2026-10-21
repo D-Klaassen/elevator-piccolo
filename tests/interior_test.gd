@@ -141,12 +141,11 @@ func _against_a_wall(box: AABB, y: float) -> bool:
 ## The inner faces of a hallway's walls: the side walls at x = +-inner, the landing wall at
 ## z = landing and the back wall at z = back.
 func _walls() -> Dictionary:
-	var consts := (_scene.get_script() as Script).get_script_constant_map()
-	var half: float = consts.HALL_WIDTH / 2
+	var half := Hallway.WIDTH / 2
 	return {
 		"inner": half - 0.05,
-		"landing": consts.SHAFT_FRONT + 0.1,
-		"back": Elevator.CAB_HALF_WIDTH + 0.05 + consts.HALL_DEPTH - 0.05,
+		"landing": Hallway.SHAFT_FRONT + 0.1,
+		"back": Elevator.CAB_HALF_WIDTH + 0.05 + Hallway.DEPTH - 0.05,
 	}
 
 
