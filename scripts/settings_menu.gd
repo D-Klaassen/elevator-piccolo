@@ -4,7 +4,8 @@ extends PanelContainer
 ## they move. During a shift Esc (or Start) opens it as the pause menu, and Esc, Start, B or
 ## Resume closes it again; the staff room opens it with its Settings button, and so does
 ## Esc in the Asset room. In debug builds it has a Debug section with the [DebugOptions],
-## End shift now and the way into (or out of) the Asset room.
+## End shift now and the way into (or out of) the Asset room; in the Asset room it also has
+## a slider for [member AssetRoom.walk_speed].
 
 ## Where the menu is opened from.
 enum Where { SHIFT, STAFF_ROOM, ASSET_ROOM }
@@ -32,6 +33,8 @@ var _speed: Button
 var _end_shift: Button
 var _asset_room: Button
 var _leave_asset_room: Button
+var _walk_speed: HSlider
+var _walk_speed_label: Label
 
 
 func _ready() -> void:
@@ -115,6 +118,14 @@ func _build_debug() -> Control:
 	_asset_room.text = "Asset room"
 	_asset_room.pressed.connect(asset_room_requested.emit)
 	debug.add_child(_asset_room)
+	_walk_speed_label = Label.new()
+	debug.add_child(_walk_speed_label)
+	_walk_speed = _slider("WalkSpeed", 1.0, AssetRoom.MAX_WALK_SPEED, 0.5)
+	_walk_speed.value_changed.connect(func(value: float) -> void:
+		AssetRoom.walk_speed = value
+		_update_walk_speed()
+		changed.emit())
+	debug.add_child(_walk_speed)
 	_leave_asset_room = Button.new()
 	_leave_asset_room.name = "LeaveAssetRoom"
 	_leave_asset_room.text = "Leave the Asset room"
@@ -141,6 +152,10 @@ func _debug_changed() -> void:
 
 func _update_speed() -> void:
 	_speed.text = "Game speed: ×%d" % DebugOptions.speed
+
+
+func _update_walk_speed() -> void:
+	_walk_speed_label.text = "Walk speed: ×%s" % String.num(AssetRoom.walk_speed, 1)
 
 
 func _slider(slider_name: String, from: float, to: float, step: float) -> HSlider:
@@ -174,6 +189,10 @@ func open(where: Where) -> void:
 		_end_shift.visible = where == Where.SHIFT
 		_asset_room.visible = where != Where.ASSET_ROOM
 		_leave_asset_room.visible = where == Where.ASSET_ROOM
+		_walk_speed.visible = where == Where.ASSET_ROOM
+		_walk_speed_label.visible = where == Where.ASSET_ROOM
+		_walk_speed.set_value_no_signal(AssetRoom.walk_speed)
+		_update_walk_speed()
 	show()
 	_close.grab_focus()
 
