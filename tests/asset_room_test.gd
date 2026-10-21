@@ -2,8 +2,8 @@ extends "res://tests/scene_test.gd"
 ## Headless scripted test of the Asset room: the Settings menu's Debug section takes you
 ## there from a shift or from the staff room, and leaving takes you back where you came
 ## from. Every model under assets/ stands in it, and looking at an asset shows its asset
-## name; a character goes through its animations, the sound buttons play their sounds and
-## the cab's doors work.
+## name; a character goes through its animations, the sound buttons play their sounds,
+## the cab's doors work and the menu's Walk speed slider makes you walk faster.
 ##
 ## Run: tests/run.sh asset_room_test
 
@@ -18,12 +18,14 @@ func _run() -> void:
 	await _test_character()
 	await _test_sounds()
 	await _test_cab()
+	await _test_walk_speed()
 	await _leave_to_shift()
 	await _enter_and_leave_from_staff_room()
 
 
 func _enter_from_shift() -> void:
 	await _escape()
+	_check(not (_menu().find_child("WalkSpeed", true, false) as Control).visible, "the pause menu in a shift has no Walk speed slider")
 	(_menu().find_child("AssetRoom", true, false) as Button).pressed.emit()
 	_room = await _wait_for_room()
 	_check(_room != null and not paused, "the Asset room button in the pause menu opens the Asset room")
@@ -91,6 +93,35 @@ func _test_cab() -> void:
 		if child is ElevatorButton and child.action == "close":
 			child.press()
 	_check(await _wait_until(func() -> bool: return elevator.door_amount == 0.0), "and its close button shuts the doors")
+
+
+func _test_walk_speed() -> void:
+	var player := _room.find_child("Player", true, false) as Player
+	var normal := await _walk(player)
+	await _escape()
+	var slider := _room.find_child("WalkSpeed", true, false) as HSlider
+	_check(slider.visible and slider.value == 1.0, "the menu in the Asset room has a Walk speed slider, at ×1")
+	slider.value = 3.0
+	await _escape()
+	var fast := await _walk(player)
+	_check(is_equal_approx(fast, 3.0 * normal) and is_equal_approx(normal, Player.SPEED),
+			"with it at ×3 you walk three times as fast (%.2f m/s, was %.2f)" % [fast, normal])
+	slider.value = 1.0
+
+
+## Walks forward down the aisle for a moment; returns how fast, in metres per second.
+func _walk(player: Player) -> float:
+	player.global_position = Vector3(2.0, 0.0, 0.0)
+	player.rotation.y = -PI / 2
+	await physics_frame
+	await physics_frame
+	Input.action_press("move_forward")
+	await physics_frame
+	await physics_frame
+	var speed := Vector2(player.velocity.x, player.velocity.z).length()
+	Input.action_release("move_forward")
+	await physics_frame
+	return speed
 
 
 func _leave_to_shift() -> void:

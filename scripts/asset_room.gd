@@ -12,7 +12,8 @@ extends Node3D
 ## working elevator in it) and the sounds (press a button to hear it). The models are
 ## picked up from the asset folders, so a new one shows up on its own.
 ##
-## Esc opens the Settings menu; Leave the Asset room goes back where you came from: the
+## Esc opens the Settings menu, whose Walk speed slider lets you walk up to
+## [constant MAX_WALK_SPEED] times faster; Leave the Asset room goes back where you came from: the
 ## staff room, or a fresh start of the shift you left.
 
 const SCENE := "res://scenes/asset_room.tscn"
@@ -23,16 +24,20 @@ const SECTION_GAP := 2.5
 const HEIGHT := 4.5 ## of the room
 const REFERENCE_HEIGHT := 1.8
 const SIGN_SIZE := 32 ## font size of the asset names at the assets' feet
-## What a floor display shows as you press it: [floor, direction].
 ## Trim that is the same in every hotel, so it is named without the hotel's name.
 const SAME_IN_EVERY_HOTEL: Array[String] = ["threshold"]
+## What a floor display shows as you press it: [floor, direction].
 const DISPLAY_STATES: Array[Vector2i] = [
 	Vector2i(0, 0), Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 0), Vector2i(2, -1), Vector2i(1, -1),
 ]
+const MAX_WALK_SPEED := 4.0
 
 ## True when the Asset room was entered from the staff room, so leaving it should go back
 ## there instead of starting a shift. The hotel scene reads it, and clears it, when it loads.
 static var back_to_staff_room := false
+## How many times faster than in the hotel you walk here, set with the Walk speed slider in
+## the Settings menu. It lasts until the game quits, like the [DebugOptions].
+static var walk_speed := 1.0
 
 ## The sounds played, by name, oldest first.
 var played: Array[String] = []
@@ -90,6 +95,7 @@ func _ready() -> void:
 	_player.position = Vector3(0.0, 0.05, 0.0)
 	_player.rotation_degrees.y = -90.0 # down the aisle (+X)
 	_player.look_sensitivity = _settings.look_sensitivity
+	_player.speed = Player.SPEED * walk_speed
 	add_child(_player)
 	_build_hud()
 	_player.looking_at_changed.connect(_on_looking_at_changed)
@@ -420,6 +426,7 @@ func _on_pause_requested() -> void:
 
 func _on_settings_changed() -> void:
 	_player.look_sensitivity = _settings.look_sensitivity
+	_player.speed = Player.SPEED * walk_speed
 	_debug_label.text = DebugOptions.label()
 
 
