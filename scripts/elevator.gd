@@ -103,7 +103,7 @@ func _ready() -> void:
 	_build_call_panel()
 	_build_fittings()
 	_ding_player = AudioStreamPlayer.new()
-	_ding_player.stream = _make_ding()
+	_ding_player.stream = make_ding()
 	# Keep ringing through the end-of-shift pause: a paused ding never finishes and leaks at quit.
 	_ding_player.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_ding_player)
@@ -166,7 +166,7 @@ func _chime(going_down: bool) -> void:
 	chimes += 2 if going_down else 1
 	# The headless (Dummy) audio driver never finishes a sound, which leaks it at quit.
 	if AudioServer.get_driver_name() != "Dummy":
-		_chime_player.stream = _make_chime(going_down)
+		_chime_player.stream = make_chime(going_down)
 		_chime_player.play()
 
 
@@ -387,9 +387,11 @@ func _build_fittings() -> void:
 
 ## A soft hall-lantern chime, generated like the ding: one tone, or a high and a lower one
 ## for [param going_down].
-static func _make_chime(going_down: bool) -> AudioStreamWAV:
+static func make_chime(going_down: bool) -> AudioStreamWAV:
 	var rate := 22050
-	var tones: Array[float] = [784.0, 659.3] if going_down else [784.0] # G5, then E5
+	var tones: Array[float] = [784.0] # G5
+	if going_down:
+		tones.append(659.3) # then E5
 	var gap := int(rate * 0.45)
 	var length := gap * (tones.size() - 1) + int(rate * 1.2)
 	var data := PackedByteArray()
@@ -409,7 +411,7 @@ static func _make_chime(going_down: bool) -> AudioStreamWAV:
 
 
 ## A short bell tone, generated so the project needs no audio files.
-static func _make_ding() -> AudioStreamWAV:
+static func make_ding() -> AudioStreamWAV:
 	var rate := 22050
 	var length := int(rate * 0.9)
 	var data := PackedByteArray()

@@ -70,7 +70,8 @@ func level(id: String) -> int:
 	return upgrades.get(id, 0)
 
 
-## What the next level of [param id] costs, or -1 when it is at the top level.
+## What the next level of [param id] costs, or -1 when it is at the top level. With
+## [member DebugOptions.infinite_money] on it is still the price shown, but nothing is paid.
 func next_price(id: String) -> float:
 	var l := level(id)
 	if l >= Upgrades.max_level(id):
@@ -80,7 +81,7 @@ func next_price(id: String) -> float:
 
 func can_buy(id: String) -> bool:
 	var price := next_price(id)
-	return Upgrades.is_sold_at(id, hotel) and price >= 0.0 and balance >= price
+	return Upgrades.is_sold_at(id, hotel) and price >= 0.0 and _can_pay(price)
 
 
 ## Pays for the next level of [param id]. Returns false, and changes nothing, when it is
@@ -88,7 +89,7 @@ func can_buy(id: String) -> bool:
 func buy(id: String) -> bool:
 	if not can_buy(id):
 		return false
-	balance -= next_price(id)
+	_pay(next_price(id))
 	upgrades[id] = level(id) + 1
 	return true
 
@@ -98,8 +99,11 @@ func hotel_info() -> Dictionary:
 
 
 ## True once the last [constant AVERAGE_OVER] shifts here average enough stars to apply
-## at the next hotel. Fewer shifts than that are not enough.
+## at the next hotel. Fewer shifts than that are not enough. Always true with
+## [member DebugOptions.skip_hotel_requirements] on.
 func has_unlock_rating() -> bool:
+	if DebugOptions.skip_hotel_requirements:
+		return true
 	return ratings.size() >= AVERAGE_OVER and average_rating() >= Hotels.UNLOCK_STARS
 
 
@@ -110,7 +114,7 @@ func can_finish_demo() -> bool:
 
 
 func can_move() -> bool:
-	return not Hotels.is_last(hotel) and has_unlock_rating() and balance >= Hotels.at(hotel + 1).fee
+	return not Hotels.is_last(hotel) and has_unlock_rating() and _can_pay(Hotels.at(hotel + 1).fee)
 
 
 ## Pays the next hotel's application fee and moves there: its ratings and shift count start
@@ -120,9 +124,18 @@ func move_up() -> bool:
 	if not can_move():
 		return false
 	hotel += 1
-	balance -= hotel_info().fee
+	_pay(hotel_info().fee)
 	ratings.clear()
 	shifts_done = 0
 	for id in Hotels.HARDWARE:
 		upgrades.erase(id)
 	return true
+
+
+func _can_pay(price: float) -> bool:
+	return DebugOptions.infinite_money or balance >= price
+
+
+func _pay(price: float) -> void:
+	if not DebugOptions.infinite_money:
+		balance -= price

@@ -45,6 +45,9 @@ const DOOR_JAMB := 0.06 ## width of the steel jamb round the elevator opening in
 ## Brushed steel: grain colours and the light band's, over a door's height.
 const BRUSHED: Array = ["brushed", 2.2, Color("9a9ea6"), Color("8c9098"), Color("b4b8c0")]
 const HANDRAIL_HEIGHT := 0.9
+## The metadata on a trim piece that says what it is ("skirting", "door jamb"), for the
+## Asset room to name it.
+const PART := &"part"
 
 static var _textures := {}
 static var _materials := {}
@@ -210,8 +213,9 @@ static func _diamond(image: Image, cx: int, cy: int, radius: int, colour: Color)
 ## elevator opening, a ceiling with a lamp, and a plate behind [param sign], the floor
 ## sign. The hallway runs from the landing wall (centred on z = [param landing_z]) to the
 ## back wall (centred on [param back]), between side walls centred on x = ±[param half];
-## all walls are 0.1 m thick.
-static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: float, half: float, landing_z: float, back: float, sign: Label3D) -> void:
+## all walls are 0.1 m thick. With [param open_right] the right-hand (+X) side wall is left
+## out, and its trim with it. Every piece is named for the Asset room (see [method _box]).
+static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: float, half: float, landing_z: float, back: float, sign: Label3D, open_right := false) -> void:
 	var s := style(hotel_id)
 	var trim := flat(s.trim, 0.2 if hotel_id == "bellevue" else 0.0)
 	var depth := back - landing_z
@@ -225,20 +229,23 @@ static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: flo
 	# Lower walls: wainscot with a chair rail on top, or just a skirting board.
 	var low_h: float = WAINSCOT_HEIGHT if not (s.wainscot as Array).is_empty() else 0.12
 	var low := material(s.wainscot) if not (s.wainscot as Array).is_empty() else trim
+	var low_part := "%s wainscot" % s.wainscot[0] if not (s.wainscot as Array).is_empty() else "skirting"
 	var t := 0.02
-	_box(parent, Vector3(t, low_h, depth - 0.1), Vector3(-inner + t / 2, y + low_h / 2, mid_z), low)
-	_box(parent, Vector3(t, low_h, depth - 0.1), Vector3(inner - t / 2, y + low_h / 2, mid_z), low)
-	_box(parent, Vector3(2 * inner, low_h, t), Vector3(0, y + low_h / 2, back_face - t / 2), low)
+	_box(parent, Vector3(t, low_h, depth - 0.1), Vector3(-inner + t / 2, y + low_h / 2, mid_z), low, low_part)
+	if not open_right:
+		_box(parent, Vector3(t, low_h, depth - 0.1), Vector3(inner - t / 2, y + low_h / 2, mid_z), low, low_part)
+	_box(parent, Vector3(2 * inner, low_h, t), Vector3(0, y + low_h / 2, back_face - t / 2), low, low_part)
 	for sign_x in [-1.0, 1.0]:
-		_box(parent, Vector3(side - 0.1, low_h, t), Vector3(sign_x * (opening + 0.1 + (side - 0.1) / 2 - 0.05), y + low_h / 2, landing_face + t / 2), low)
+		_box(parent, Vector3(side - 0.1, low_h, t), Vector3(sign_x * (opening + 0.1 + (side - 0.1) / 2 - 0.05), y + low_h / 2, landing_face + t / 2), low, low_part)
 	if not (s.wainscot as Array).is_empty():
 		var rail := 0.05
 		var rail_y := y + low_h + rail / 2
-		_box(parent, Vector3(0.04, rail, depth - 0.1), Vector3(-inner + 0.02, rail_y, mid_z), trim)
-		_box(parent, Vector3(0.04, rail, depth - 0.1), Vector3(inner - 0.02, rail_y, mid_z), trim)
-		_box(parent, Vector3(2 * inner, rail, 0.04), Vector3(0, rail_y, back_face - 0.02), trim)
+		_box(parent, Vector3(0.04, rail, depth - 0.1), Vector3(-inner + 0.02, rail_y, mid_z), trim, "chair rail")
+		if not open_right:
+			_box(parent, Vector3(0.04, rail, depth - 0.1), Vector3(inner - 0.02, rail_y, mid_z), trim, "chair rail")
+		_box(parent, Vector3(2 * inner, rail, 0.04), Vector3(0, rail_y, back_face - 0.02), trim, "chair rail")
 		for sign_x in [-1.0, 1.0]:
-			_box(parent, Vector3(side - 0.1, rail, 0.04), Vector3(sign_x * (opening + 0.1 + (side - 0.1) / 2 - 0.05), rail_y, landing_face + 0.02), trim)
+			_box(parent, Vector3(side - 0.1, rail, 0.04), Vector3(sign_x * (opening + 0.1 + (side - 0.1) / 2 - 0.05), rail_y, landing_face + 0.02), trim, "chair rail")
 
 	# Round the elevator opening on the hallway side: a deep brushed-steel jamb, and the
 	# hotel's own frame round that.
@@ -248,20 +255,20 @@ static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: flo
 	var jamb_depth := 0.05
 	var steel := brushed_steel()
 	for sign_x in [-1.0, 1.0]:
-		_box(parent, Vector3(jamb + lap, Elevator.DOOR_HEIGHT + jamb, jamb_depth), Vector3(sign_x * (opening + (jamb - lap) / 2), y + (Elevator.DOOR_HEIGHT + jamb) / 2, landing_face + jamb_depth / 2), steel)
-	_box(parent, Vector3(Elevator.DOOR_OPENING + 2 * jamb, jamb + lap, jamb_depth), Vector3(0, y + Elevator.DOOR_HEIGHT + (jamb - lap) / 2, landing_face + jamb_depth / 2), steel)
+		_box(parent, Vector3(jamb + lap, Elevator.DOOR_HEIGHT + jamb, jamb_depth), Vector3(sign_x * (opening + (jamb - lap) / 2), y + (Elevator.DOOR_HEIGHT + jamb) / 2, landing_face + jamb_depth / 2), steel, "door jamb")
+	_box(parent, Vector3(Elevator.DOOR_OPENING + 2 * jamb, jamb + lap, jamb_depth), Vector3(0, y + Elevator.DOOR_HEIGHT + (jamb - lap) / 2, landing_face + jamb_depth / 2), steel, "door jamb")
 	var frame := 0.1
 	var frame_z := landing_face + 0.02
 	var outer := opening + jamb
 	for sign_x in [-1.0, 1.0]:
-		_box(parent, Vector3(frame, Elevator.DOOR_HEIGHT + jamb + frame, 0.04), Vector3(sign_x * (outer + frame / 2), y + (Elevator.DOOR_HEIGHT + jamb + frame) / 2, frame_z), trim)
-	_box(parent, Vector3(2 * (outer + frame), frame, 0.04), Vector3(0, y + Elevator.DOOR_HEIGHT + jamb + frame / 2, frame_z), trim)
+		_box(parent, Vector3(frame, Elevator.DOOR_HEIGHT + jamb + frame, 0.04), Vector3(sign_x * (outer + frame / 2), y + (Elevator.DOOR_HEIGHT + jamb + frame) / 2, frame_z), trim, "door frame")
+	_box(parent, Vector3(2 * (outer + frame), frame, 0.04), Vector3(0, y + Elevator.DOOR_HEIGHT + jamb + frame / 2, frame_z), trim, "door frame")
 
 	# A dark metal threshold across the opening, from the doors' track to the hallway floor.
 	_threshold(parent, Vector3(0, y, (landing_z - 0.05 + landing_face + 0.06) / 2), 0.11 + 0.05)
 
 	# The ceiling, and a lamp in the middle of it.
-	_box(parent, Vector3(2 * half, 0.02, depth), Vector3(0, y + wall_h - 0.01, mid_z), material(s.ceiling))
+	_box(parent, Vector3(2 * half, 0.02, depth), Vector3(0, y + wall_h - 0.01, mid_z), material(s.ceiling), "%s ceiling" % s.ceiling[0])
 	var lamp := Decor.put(parent, "lampSquareCeiling", Vector3(0, 0, mid_z))
 	var lamp_box := lamp.transform * Decor.bounds(lamp.get_child(0))
 	lamp.position.y = y + wall_h - 0.02 - lamp_box.size.y
@@ -272,8 +279,8 @@ static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: flo
 	var text := font.get_string_size(sign.text, HORIZONTAL_ALIGNMENT_LEFT, -1, sign.font_size) * sign.pixel_size
 	var plate := Vector2(text.x + 0.3, text.y + 0.06)
 	var plate_face := sign.position.z + 0.003
-	_box(parent, Vector3(plate.x, plate.y, back_face - plate_face), Vector3(sign.position.x, sign.position.y, (plate_face + back_face) / 2), flat(s.sign))
-	_box(parent, Vector3(plate.x + 0.1, plate.y + 0.1, back_face - plate_face - 0.003), Vector3(sign.position.x, sign.position.y, (plate_face + 0.003 + back_face) / 2), trim)
+	_box(parent, Vector3(plate.x, plate.y, back_face - plate_face), Vector3(sign.position.x, sign.position.y, (plate_face + back_face) / 2), flat(s.sign), "floor sign plate")
+	_box(parent, Vector3(plate.x + 0.1, plate.y + 0.1, back_face - plate_face - 0.003), Vector3(sign.position.x, sign.position.y, (plate_face + 0.003 + back_face) / 2), trim, "floor sign frame")
 
 
 ## One door panel, [param width] by [param height] and [param thickness] thick, on [param
@@ -284,7 +291,7 @@ static func door_panel(body: Node3D, width: float, height: float, thickness: flo
 	Greybox.box(body, Vector3(width, height, thickness), Vector3.ZERO, Color.WHITE, true, brushed_steel())
 	var edge := 0.012
 	for sign_x in [-1.0, 1.0]:
-		_box(body, Vector3(edge, height, thickness + 0.004), Vector3(sign_x * (width - edge) / 2, 0, 0), flat(Color("2a2a2e")))
+		_box(body, Vector3(edge, height, thickness + 0.004), Vector3(sign_x * (width - edge) / 2, 0, 0), flat(Color("2a2a2e")), "door panel edge")
 
 
 ## A threshold strip across a door opening, [param depth] deep, its middle at [param at]
@@ -292,8 +299,8 @@ static func door_panel(body: Node3D, width: float, height: float, thickness: flo
 ## the doors run.
 static func _threshold(parent: Node3D, at: Vector3, depth: float) -> void:
 	var width := Elevator.DOOR_OPENING + 0.04
-	_box(parent, Vector3(width, 0.006, depth), at + Vector3(0, 0.003, 0), flat(Color("4a4c52"), 0.4))
-	_box(parent, Vector3(width, 0.007, 0.012), at + Vector3(0, 0.0035, 0), flat(Color("1c1c20")))
+	_box(parent, Vector3(width, 0.006, depth), at + Vector3(0, 0.003, 0), flat(Color("4a4c52"), 0.4), "threshold")
+	_box(parent, Vector3(width, 0.007, 0.012), at + Vector3(0, 0.0035, 0), flat(Color("1c1c20")), "threshold")
 
 
 ## Brushed steel for the doors, the door frames and the call plates. Fixed to each piece,
@@ -314,40 +321,45 @@ static func trim_cab(cab: Node3D, w: float, h: float, wall: float, front_face: f
 	light.emission_enabled = true
 	light.emission = Color("fff1d0")
 	light.emission_energy_multiplier = 1.5
-	_box(cab, Vector3(0.8, 0.02, 0.8), Vector3(0, h - 0.01, 0), light)
-	_box(cab, Vector3(0.9, 0.025, 0.9), Vector3(0, h - 0.0125, 0), brass)
+	_box(cab, Vector3(0.8, 0.02, 0.8), Vector3(0, h - 0.01, 0), light, "ceiling light")
+	_box(cab, Vector3(0.9, 0.025, 0.9), Vector3(0, h - 0.0125, 0), brass, "ceiling light")
 
 	# Handrail on the back wall and on the +X wall (the buttons are on the -X wall).
 	var rail_out := 0.06
-	_box(cab, Vector3(2 * inner - 0.3, 0.04, 0.04), Vector3(0, HANDRAIL_HEIGHT, -inner + rail_out), brass)
-	_box(cab, Vector3(0.04, 0.04, 2 * inner - 0.5), Vector3(inner - rail_out, HANDRAIL_HEIGHT, -0.1), brass)
+	_box(cab, Vector3(2 * inner - 0.3, 0.04, 0.04), Vector3(0, HANDRAIL_HEIGHT, -inner + rail_out), brass, "handrail")
+	_box(cab, Vector3(0.04, 0.04, 2 * inner - 0.5), Vector3(inner - rail_out, HANDRAIL_HEIGHT, -0.1), brass, "handrail")
 	for x in [-inner + 0.35, inner - 0.35]:
-		_box(cab, Vector3(0.03, 0.03, rail_out), Vector3(x, HANDRAIL_HEIGHT, -inner + rail_out / 2), brass)
+		_box(cab, Vector3(0.03, 0.03, rail_out), Vector3(x, HANDRAIL_HEIGHT, -inner + rail_out / 2), brass, "handrail")
 	for z in [-inner + 0.35, inner - 0.6]:
-		_box(cab, Vector3(rail_out, 0.03, 0.03), Vector3(inner - rail_out / 2, HANDRAIL_HEIGHT, z), brass)
+		_box(cab, Vector3(rail_out, 0.03, 0.03), Vector3(inner - rail_out / 2, HANDRAIL_HEIGHT, z), brass, "handrail")
 
 	# Skirting on the back and side walls and on the inner front wall (at [param front_face],
 	# which the open doors slide behind), either side of the door.
 	var dark := flat(CAB_WALL[4])
-	_box(cab, Vector3(2 * inner, 0.1, 0.015), Vector3(0, 0.05, -inner + 0.0075), dark)
+	_box(cab, Vector3(2 * inner, 0.1, 0.015), Vector3(0, 0.05, -inner + 0.0075), dark, "skirting")
 	for x in [-inner + 0.0075, inner - 0.0075]:
-		_box(cab, Vector3(0.015, 0.1, front_face + inner), Vector3(x, 0.05, (front_face - inner) / 2), dark)
+		_box(cab, Vector3(0.015, 0.1, front_face + inner), Vector3(x, 0.05, (front_face - inner) / 2), dark, "skirting")
 	var opening := Elevator.DOOR_OPENING / 2
 	var skirt := inner - opening - 0.1
 	for sign_x in [-1.0, 1.0]:
-		_box(cab, Vector3(skirt, 0.1, 0.015), Vector3(sign_x * (inner - skirt / 2), 0.05, front_face - 0.0075), dark)
+		_box(cab, Vector3(skirt, 0.1, 0.015), Vector3(sign_x * (inner - skirt / 2), 0.05, front_face - 0.0075), dark, "skirting")
 
 	# A frame round the door, like the one round the landing doors on the hallway side.
 	var frame := 0.1
 	var frame_z := front_face - 0.02
 	for sign_x in [-1.0, 1.0]:
-		_box(cab, Vector3(frame, Elevator.DOOR_HEIGHT + frame, 0.04), Vector3(sign_x * (opening + frame / 2), (Elevator.DOOR_HEIGHT + frame) / 2, frame_z), dark)
-	_box(cab, Vector3(Elevator.DOOR_OPENING + 2 * frame, frame, 0.04), Vector3(0, Elevator.DOOR_HEIGHT + frame / 2, frame_z), dark)
+		_box(cab, Vector3(frame, Elevator.DOOR_HEIGHT + frame, 0.04), Vector3(sign_x * (opening + frame / 2), (Elevator.DOOR_HEIGHT + frame) / 2, frame_z), dark, "door frame")
+	_box(cab, Vector3(Elevator.DOOR_OPENING + 2 * frame, frame, 0.04), Vector3(0, Elevator.DOOR_HEIGHT + frame / 2, frame_z), dark, "door frame")
 
 	# The threshold the doors run in, from the inner front wall to the front wall's outside.
 	var outside := w + wall / 2
 	_threshold(cab, Vector3(0, 0, (front_face + outside) / 2), outside - front_face)
 
 
-static func _box(parent: Node3D, size: Vector3, center: Vector3, surface: Material) -> MeshInstance3D:
-	return Greybox.box(parent, size, center, Color.WHITE, false, surface) as MeshInstance3D
+## A box with no collision. [param part] says what it is, for the Asset room to name it
+## ([constant PART]).
+static func _box(parent: Node3D, size: Vector3, center: Vector3, surface: Material, part := "") -> MeshInstance3D:
+	var mesh := Greybox.box(parent, size, center, Color.WHITE, false, surface) as MeshInstance3D
+	if part:
+		mesh.set_meta(PART, part)
+	return mesh

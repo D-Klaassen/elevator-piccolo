@@ -10,6 +10,8 @@ const SPEED := 2.5
 const MOUSE_SENSITIVITY := 0.002 ## radians per pixel
 const STICK_LOOK_SPEED := 2.5 ## radians per second with the right stick all the way over
 const REACH := 2.0
+## The metadata the Asset room names a wall or a door panel with, for [method name_of].
+const NAME_META := &"display_name"
 
 ## Multiplies [constant MOUSE_SENSITIVITY] and [constant STICK_LOOK_SPEED]; set from
 ## [member Settings.look_sensitivity].
@@ -39,7 +41,7 @@ func _ready() -> void:
 
 	_ray = RayCast3D.new()
 	_ray.target_position = Vector3(0, 0, -REACH)
-	_ray.collision_mask = 1 | Guest.COLLISION_LAYER
+	_ray.collision_mask = 1 | Guest.COLLISION_LAYER | AssetTag.COLLISION_LAYER
 	_camera.add_child(_ray)
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -92,7 +94,15 @@ func _update_looking_at() -> void:
 	if target == _looking_at:
 		return
 	_looking_at = target
-	var text := ""
-	if target is ElevatorButton or target is Guest:
-		text = target.display_name
-	looking_at_changed.emit(text)
+	looking_at_changed.emit(name_of(target))
+
+
+## What the HUD calls [param target] while you look at it: the [code]display_name[/code] of
+## a button, a guest or an [AssetTag], or the [code]display_name[/code] metadata the Asset
+## room puts on a wall; "" for anything else.
+static func name_of(target: Object) -> String:
+	if target == null:
+		return ""
+	if "display_name" in target:
+		return target.display_name
+	return target.get_meta(NAME_META, "")
