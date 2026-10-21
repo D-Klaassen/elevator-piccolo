@@ -282,8 +282,8 @@ func _build_landings() -> void:
 
 		var hall_face := landing_z + WALL / 2
 		var plate_at := Vector3(DOOR_OPENING / 2 + 0.3, 1.1, hall_face + 0.006)
-		# A round yellow button on a brushed-steel plate.
-		Greybox.box(landing, Vector3(0.12, 0.2, 0.012), plate_at, Color.WHITE, false, Interior.brushed_steel())
+		# A round yellow button on a steel plate.
+		Greybox.box(landing, Vector3(0.12, 0.2, 0.012), plate_at, Color.WHITE, false, Interior.steel())
 		var button := ElevatorButton.new()
 		button.name = "CallButton"
 		button.position = plate_at + Vector3(0, 0, 0.012)

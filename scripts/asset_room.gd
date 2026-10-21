@@ -25,7 +25,7 @@ const REFERENCE_HEIGHT := 1.8
 const SIGN_SIZE := 32 ## font size of the asset names at the assets' feet
 ## What a floor display shows as you press it: [floor, direction].
 ## Trim that is the same in every hotel, so it is named without the hotel's name.
-const SAME_IN_EVERY_HOTEL: Array[String] = ["door jamb", "threshold", "door panel edge"]
+const SAME_IN_EVERY_HOTEL: Array[String] = ["threshold"]
 const DISPLAY_STATES: Array[Vector2i] = [
 	Vector2i(0, 0), Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 0), Vector2i(2, -1), Vector2i(1, -1),
 ]
@@ -229,12 +229,12 @@ func _press_to_change(display: FloorDisplay) -> void:
 		display.show_floor(DISPLAY_STATES[state[0]].x, DISPLAY_STATES[state[0]].y))
 
 
-## A button on a brushed-steel plate on a post: [param round] like a call button, else
+## A button on a steel plate on a post: [param round] like a call button, else
 ## like the cab's.
 func _button(asset_name: String, caption: String, round: bool) -> Node3D:
 	var holder := _holder(asset_name)
 	_post(holder, 1.0)
-	Greybox.box(holder, Vector3(0.16, 0.22, 0.012), Vector3(0, 1.1, 0.006), Color.WHITE, false, Interior.brushed_steel())
+	Greybox.box(holder, Vector3(0.16, 0.22, 0.012), Vector3(0, 1.1, 0.006), Color.WHITE, false, Interior.steel())
 	var button := ElevatorButton.new()
 	button.position = Vector3(0, 1.1, 0.02 if round else 0.032)
 	button.rotation_degrees.y = -90.0 # its face (+X) towards the aisle (+Z)

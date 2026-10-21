@@ -18,6 +18,7 @@ window/size/viewport_height=720
 
 [rendering]
 
+anti_aliasing/quality/msaa_3d=1
 textures/vram_compression/import_etc2_astc=true
 
 [physics]

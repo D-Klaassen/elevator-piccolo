@@ -51,7 +51,7 @@ func _test_code_built() -> void:
 		"Pension Bellevue wallpaper wall", "Pension Bellevue carpet floor",
 		"Pension Bellevue panels wainscot", "Pension Bellevue chair rail",
 		"Pension Bellevue door frame", "Pension Bellevue floor sign plate",
-		"door jamb", "cab handrail", "cab open button", "cab panels wall",
+		"Rustic cabin door frame", "cab handrail", "cab open button", "cab panels wall",
 	]:
 		var found := _room.asset(asset_name)
 		_check(found != null and await _look_at(found, asset_name) == asset_name, "%s is in the Asset room, named" % asset_name)
