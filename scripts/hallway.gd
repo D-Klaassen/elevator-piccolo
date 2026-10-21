@@ -5,9 +5,10 @@ class_name Hallway
 
 const WIDTH := 6.0
 const DEPTH := 4.0
-const SHAFT_FRONT := 1.1 ## z where the landing wall starts, just in front of the cab
-## The landing walls' middle: where the [Elevator]'s landing doors go ([member Elevator.landing_z]).
-const LANDING_Z := SHAFT_FRONT + 0.05
+## The landing walls' middle: the landing doors hang just behind it ([member Elevator.landing_z]).
+const LANDING_Z := Elevator.LANDING_Z
+const SHAFT_FRONT := LANDING_Z - Elevator.WALL / 2 ## z where the landing wall starts, in front of the cab
+const SHAFT_GREY := Color(0.25, 0.25, 0.27)
 
 
 ## The hotel's light: a dark background and a warm ambient light. Returns it, for the
@@ -25,16 +26,19 @@ static func build_environment(parent: Node) -> Environment:
 	return env
 
 
-## The pit floor, back and side walls of a shaft [param floors] floors high, around the cab.
+## The pit floor, back and side walls of a shaft [param floors] floors high, around the cab;
+## the side walls reach the landing walls.
 static func build_shaft(parent: Node3D, floors: int) -> void:
-	var color := Color(0.25, 0.25, 0.27)
+	var color := SHAFT_GREY
 	var height := floors * Elevator.FLOOR_HEIGHT + 1.0
 	var center_y := height / 2 - 1.0
 	var outer := Elevator.CAB_HALF_WIDTH + 0.15
-	Greybox.box(parent, Vector3(2 * outer, 0.2, 2 * outer), Vector3(0, -1.1, 0), color)
+	var depth := outer + SHAFT_FRONT
+	var middle_z := (SHAFT_FRONT - outer) / 2
+	Greybox.box(parent, Vector3(2 * outer, 0.2, depth), Vector3(0, -1.1, middle_z), color)
 	Greybox.box(parent, Vector3(2 * outer, height, 0.1), Vector3(0, center_y, -outer), color)
-	Greybox.box(parent, Vector3(0.1, height, 2 * outer), Vector3(-outer, center_y, 0), color)
-	Greybox.box(parent, Vector3(0.1, height, 2 * outer), Vector3(outer, center_y, 0), color)
+	Greybox.box(parent, Vector3(0.1, height, depth), Vector3(-outer, center_y, middle_z), color)
+	Greybox.box(parent, Vector3(0.1, height, depth), Vector3(outer, center_y, middle_z), color)
 
 
 ## The hallway of floor [param f] in [param hotel] (from [constant Hotels.LADDER]), under
@@ -76,6 +80,15 @@ static func build(parent: Node3D, hotel: Dictionary, f: int, open_right := false
 			continue
 		var wall := Greybox.box(parent, piece[1], piece[2], Color.WHITE, true, wall_surface)
 		wall.name = "%s%d" % [piece[0], f]
+	# The landing wall's shaft side, as far as the cab looks out on it, in the shaft's grey,
+	# so no wallpaper shows past the frame from inside the cab.
+	var shaft_face := SHAFT_FRONT - 0.001 # clear of the landing doors just behind it
+	var beside_from := opening - Interior.FRAME_LAP + Interior.DOOR_FRAME
+	var beside := Elevator.CAB_HALF_WIDTH + 0.1 - beside_from
+	var above := Elevator.DOOR_HEIGHT - Interior.FRAME_LAP + Interior.DOOR_FRAME
+	for sign_x in [-1.0, 1.0]:
+		Greybox.box(parent, Vector3(beside, wall_h, 0.002), Vector3(sign_x * (beside_from + beside / 2), y + wall_h / 2, shaft_face), SHAFT_GREY, false)
+	Greybox.box(parent, Vector3(2 * beside_from, wall_h - above, 0.002), Vector3(0, y + (wall_h + above) / 2, shaft_face), SHAFT_GREY, false)
 
 	# Floor sign on the back wall, facing the elevator (-Z).
 	var places: Array = hotel.places

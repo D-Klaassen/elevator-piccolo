@@ -82,7 +82,8 @@ func _test_staff_room() -> void:
 	var started := Time.get_ticks_msec()
 	_press("close")
 	await _wait_until(func() -> bool: return not _elevator.doors_open and not _elevator._doors_busy)
-	_check(Time.get_ticks_msec() - started < Elevator.DOOR_TIME * 1000, "they close in under %.1f s" % Elevator.DOOR_TIME)
+	var standard := Elevator.DOOR_TIME * Elevator.CLOSE_SLOWER
+	_check(Time.get_ticks_msec() - started < standard * 1000, "they close in under the standard doors' %.1f s" % standard)
 	_press("open")
 	await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
 

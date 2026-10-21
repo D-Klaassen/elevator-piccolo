@@ -20,8 +20,8 @@ func _run() -> void:
 	await _test_cab_open_elsewhere()
 
 
-## Like a real elevator's: opening speeds up, glides and eases in; closing glides and then
-## creeps the last bit.
+## Like a real elevator's: opening speeds up, glides and eases in; closing glides steadily
+## and slows down for the last bit.
 func _test_speed_curves() -> void:
 	var opening := Elevator.OPENING_SPEED
 	var closing := Elevator.CLOSING_SPEED
@@ -29,51 +29,80 @@ func _test_speed_curves() -> void:
 	_check(Elevator.travelled(opening, 0.15) < 0.08, "opening starts slowly (%.2f of the way after 15%% of the time)" % Elevator.travelled(opening, 0.15))
 	_check(Elevator.travelled(opening, 0.6) - Elevator.travelled(opening, 0.4) > 0.25, "glides in the middle")
 	_check(1.0 - Elevator.travelled(opening, 0.85) < 0.06, "and eases into the wall")
-	var creep := 1.0 - Elevator.travelled(closing, 0.8)
-	_check(creep < 0.1, "closing creeps the last bit: the last 20%% of the time covers %.0f%% of the way" % (creep * 100))
+	var glide := Elevator.travelled(closing, 0.7) - Elevator.travelled(closing, 0.3)
+	var last := 1.0 - Elevator.travelled(closing, 0.88)
+	_check(last < glide * 0.12 / 0.4 * 0.5 and last > 0.03, "closing glides, then slows down for the last bit, at under half the speed (%.0f%% of the way in 40%% of the time, then %.0f%% in the last 12%%)" % [glide * 100, last * 100])
 
 
 func _test_panels() -> void:
+	var door := _elevator.cab_doors()
 	var panels := _elevator.door_panels()
-	_check(panels.size() == 4, "the cab's doors have two panels a side")
-	_check(_stacked(panels), "open, each side's two panels are stacked beside the opening")
+	_check(_elevator.door_style == ElevatorDoor.Style.SIDE and panels.size() == 2, "the cab, the smallest, has side-opening doors: two panels")
+	_check(_stacked(door), "open, the two panels are beside the opening, one behind the other, on one side")
+	var open_x := panels.map(func(p: Node3D) -> float: return p.position.x)
 	_press("close")
 	_check(await _wait_until(func() -> bool: return _elevator.door_amount < 0.5), "closing")
-	var left_lead := absf(panels[0].position.x) - Elevator.PANEL_WIDTH * 0.5
-	var left_trail := absf(panels[1].position.x) - Elevator.PANEL_WIDTH * 1.5
-	_check(is_equal_approx(left_lead, 2.0 * left_trail), "they telescope: the leading panel is twice as far from shut as the trailing one (%.3f, %.3f)" % [left_lead, left_trail])
+	var lead: float = open_x[0] - panels[0].position.x
+	var trail: float = open_x[1] - panels[1].position.x
+	_check(lead > 1.7 * trail and lead < 2.1 * trail, "they telescope: the leading panel moves about twice as far as the trailing one (%.3f, %.3f)" % [lead, trail])
 	await _wait_until(func() -> bool: return not _elevator.doors_open and not _elevator._doors_busy)
-	var xs := panels.map(func(p: Node3D) -> float: return p.position.x)
-	xs.sort()
-	var tiled := true
-	for i in xs.size():
-		tiled = tiled and is_equal_approx(xs[i], -Elevator.DOOR_OPENING / 2 + Elevator.PANEL_WIDTH * (i + 0.5))
-	_check(tiled, "shut, the four panels fill the opening side by side (%s)" % [xs])
+	_check(_tiled(door), "shut, the panels fill the opening side by side (%s)" % [_xs(door)])
 
 	_press("open")
 	_check(await _wait_until(func() -> bool: return _elevator.door_amount > 0.02), "opening")
-	_check(not _landing_open(0) and absf(_elevator.landing_doors(0)[0].position.x + Elevator.PANEL_WIDTH / 2) < 0.001, "the cab's doors lead: the landing doors haven't moved yet")
+	var with_cab := _elevator.landing_doors(0).panels()
+	var together := true
+	for i in panels.size():
+		together = together and is_equal_approx(with_cab[i].position.x, panels[i].position.x)
+	_check(together and _elevator.landing_doors(0).amount == _elevator.cab_doors().amount, "the landing doors move with the cab's, edge to edge, as one door")
 	await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
-	_check(_stacked(_elevator.landing_doors(0)), "and the landing doors end up stacked in the wall too")
+	_check(_stacked(_elevator.landing_doors(0)), "and the landing doors end up stacked behind the wall too")
+
+	# A bigger cab's centre-opening doors: a telescoping pair a side.
+	var centre := ElevatorDoor.make(_scene, "CentreDoors", ElevatorDoor.Style.CENTRE, 0.0, 0.1)
+	_check(centre.panels().size() == 4 and _tiled(centre), "centre-opening doors have two panels a side, shut across the opening (%s)" % [_xs(centre)])
+	centre.show_open(1.0)
+	_check(_stacked(centre) and centre.panels()[0].position.x < 0.0 and centre.panels()[2].position.x > 0.0, "and open to both sides")
+	centre.free()
 
 
-## True if each side's leading and trailing panel of [param panels] are stacked, beside the
-## opening.
-func _stacked(panels: Array) -> bool:
-	for side in [0, 2]:
-		var lead: Node3D = panels[side]
-		var trail: Node3D = panels[side + 1]
-		if not is_equal_approx(lead.position.x, trail.position.x) or absf(lead.position.x) - Elevator.PANEL_WIDTH / 2 < Elevator.DOOR_OPENING / 2 - 0.001:
+## True if all of [param door]'s panels, steel and all, are clear of the opening, beside it
+## on their side behind the frame: one behind the other.
+func _stacked(door: ElevatorDoor) -> bool:
+	for panel in door.panels():
+		var steel := AssetTag.bounds(panel)
+		var near_edge := minf(absf(panel.position.x + steel.position.x), absf(panel.position.x + steel.end.x))
+		if near_edge < Elevator.DOOR_OPENING / 2 - Interior.FRAME_LAP - 0.001 or signf(panel.position.x + steel.position.x) != signf(panel.position.x + steel.end.x):
 			return false
 	return true
+
+
+## True if [param door]'s panels fill the opening side by side.
+func _tiled(door: ElevatorDoor) -> bool:
+	var xs := _xs(door)
+	var width := ElevatorDoor.panel_width(door.style)
+	for i in xs.size():
+		if not is_equal_approx(xs[i], -Elevator.DOOR_OPENING / 2 + width * (i + 0.5)):
+			return false
+	return true
+
+
+## Where [param door]'s panels are across the opening, left to right.
+func _xs(door: ElevatorDoor) -> Array:
+	var xs := door.panels().map(func(p: Node3D) -> float: return p.position.x)
+	xs.sort()
+	return xs
 
 
 func _test_doors_follow_the_cab() -> void:
 	_check(_landing_open(0) and not _landing_open(1) and not _landing_open(2), "at the start the ground floor's landing doors are open with the cab's, the others shut")
 	_check(_elevator.call_button(1) != null and _elevator.call_button(1).display_name == "Call the elevator", "every hallway has a call button")
 	_check(_elevator.call_button(1).find_children("*", "Label3D", false, false).is_empty(), "a plain one, with no caption")
-	var edges: Array = _elevator.landing_doors(0).map(func(p: Node3D) -> float: return absf(p.position.x) - Elevator.PANEL_WIDTH / 2)
-	_check(edges.all(func(e: float) -> bool: return e > Elevator.DOOR_OPENING / 2 + 0.01), "open landing doors slide right into the wall, not flush with the opening's edge (%s)" % [edges])
+	var landing := _elevator.landing_doors(0)
+	_check(_stacked(landing), "open landing doors are clear of the opening, behind the wall")
+	var wall_back := _elevator.landing_z - Elevator.WALL / 2
+	_check(landing.panels().all(func(p: Node3D) -> bool: return p.position.z + Elevator.PANEL_THICKNESS / 2 < wall_back and p.position.z - Elevator.PANEL_THICKNESS / 2 > Elevator.CAB_HALF_WIDTH + Elevator.WALL / 2),
+			"the landing doors hang between the cab and the landing wall, so they never slide through the wall")
 	_press("close")
 	await _wait_until(func() -> bool: return not _elevator.doors_open and not _elevator._doors_busy)
 	_check(not _landing_open(0), "closing the cab's doors closes the landing doors too")
@@ -153,16 +182,17 @@ func _test_cab_open_elsewhere() -> void:
 
 
 func _landing_open(f: int) -> bool:
-	var left: Node3D = _elevator.landing_doors(f)[0]
-	return left.position.x < -Elevator.DOOR_OPENING / 2
+	return _elevator.landing_doors(f).amount > 0.99
 
 
-## True if something solid stands in floor [param f]'s landing opening, at waist height.
+## True if a landing door stands in floor [param f]'s landing opening, at waist height:
+## between the hallway and the cab.
 func _blocked(f: int) -> bool:
 	var y := f * Elevator.FLOOR_HEIGHT + 1.0
-	var ray := PhysicsRayQueryParameters3D.create(Vector3(0, y, _elevator.landing_z + 0.4), Vector3(0, y, _elevator.landing_z - 0.03), 1)
+	var cab_front := Elevator.CAB_HALF_WIDTH + Elevator.WALL / 2
+	var ray := PhysicsRayQueryParameters3D.create(Vector3(0, y, _elevator.landing_z + 0.4), Vector3(0, y, cab_front + 0.005), 1)
 	var hit := _scene.get_world_3d().direct_space_state.intersect_ray(ray)
-	return not hit.is_empty() and (hit.collider as Node).get_parent().name.begins_with("Landing")
+	return not hit.is_empty() and (hit.collider as Node).get_parent().name == "LandingDoors"
 
 
 ## Puts you in floor [param f]'s hallway, facing the elevator.

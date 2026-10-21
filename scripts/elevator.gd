@@ -9,11 +9,13 @@ extends Node3D
 ## cab's doors on the floor the cab is at and stay shut everywhere else, and a call button
 ## beside them: from the hallway it brings the cab to you and opens up when it gets there.
 ##
-## The doors move like a real elevator's: centre-opening, with two panels a side that
-## telescope (the leading panel travels twice as far, so they end up stacked); they speed
-## up, glide and ease into the wall when opening, and slow to a creep before they meet when
-## closing. The cab's doors lead and pick up the landing doors a moment later. A chime rings
-## on arrival: once going up, twice going down.
+## The doors move like a real elevator's: telescoping panels ([ElevatorDoor]) that slide to
+## one side ([member door_style]); they speed up, glide and ease into the wall when opening,
+## and glide steadily when closing, slowing down for the last bit. The cab's doors
+## and the landing doors move as one, edge to edge, so from inside or outside you see one
+## door. The landing doors hang on the shaft side of the landing wall and slide in behind
+## it, as a real elevator's do. A chime rings on arrival: once
+## going up, twice going down.
 
 signal hint(text: String)
 
@@ -26,29 +28,41 @@ const DOOR_HEIGHT := 2.1
 const DOOR_OPENING := 1.0
 const WALL := 0.1
 const SPEED := 0.7 ## metres per second: about 5 s per floor
-const DOOR_TIME := 1.2 ## seconds the standard doors take to open
-const CLOSE_SLOWER := 1.3 ## closing takes this many times as long as opening
-const PANEL_WIDTH := DOOR_OPENING / 4 ## two panels a side
-const PANEL_THICKNESS := 0.04
-const SKIN := 0.04 ## the cab's inner front wall, which the open doors slide behind
+const DOOR_TIME := 2.6 ## seconds the standard doors take to open
+const CLOSE_SLOWER := 1.35 ## closing takes this many times as long as opening
+## Thin, like a real elevator's: from the frame's face to the door is only a couple of
+## centimetres.
+const PANEL_THICKNESS := 0.02
+const SKIN := 0.012 ## the cab's inner front wall, which the open doors slide behind
+const DOOR_GAP := 0.003 ## between a door panel and what it slides past
+## How far the panels' steel reaches up past the doorway, in behind the wall over it, so
+## looking up at the shut doors there's no gap over them.
+const DOOR_TOP_REACH := 0.03
 ## Where the cab's door panels are: the trailing ones just inside its front wall, the
 ## leading ones in front of them, and the inner front wall just in front of those.
-const CAB_TRAIL_Z := CAB_HALF_WIDTH - WALL / 2 - 0.005 - PANEL_THICKNESS / 2
-const CAB_LEAD_Z := CAB_TRAIL_Z - PANEL_THICKNESS - 0.005
-const CAB_SKIN_Z := CAB_LEAD_Z - PANEL_THICKNESS / 2 - 0.005 - SKIN / 2
-const LANDING_TUCK := 0.03 ## metres open landing doors slide past the opening's edge, into the wall
-## Share of the way the cab's doors go before they pick up the landing doors.
-const LANDING_LAG := 0.06
+const CAB_TRAIL_Z := CAB_HALF_WIDTH - WALL / 2 - DOOR_GAP - PANEL_THICKNESS / 2
+const CAB_LEAD_Z := CAB_TRAIL_Z - PANEL_THICKNESS - DOOR_GAP
+const CAB_SKIN_Z := CAB_LEAD_Z - PANEL_THICKNESS / 2 - DOOR_GAP - SKIN / 2
+## How far the landing doors hang behind the middle of the landing wall, on the shaft side:
+## the trailing panels just behind the wall, the leading ones behind those.
+const LANDING_TRAIL_BACK := WALL / 2 + DOOR_GAP + PANEL_THICKNESS / 2
+const LANDING_LEAD_BACK := LANDING_TRAIL_BACK + PANEL_THICKNESS + DOOR_GAP
+## The middle of the hallways' landing walls: far enough in front of the cab for the landing
+## doors behind them, with a 2 cm gap to the cab.
+const LANDING_Z := CAB_HALF_WIDTH + WALL / 2 + 0.02 + LANDING_LEAD_BACK + PANEL_THICKNESS / 2
 const ARRIVAL_PAUSE := 0.6 ## seconds between the chime and the doors opening by themselves
 const DISPLAY_HEIGHT := DOOR_HEIGHT + 0.3 ## the middle of the floor displays over the doors
 ## How fast the doors move over the course of opening and of closing, as [time, speed]
 ## points with straight lines between them (both from 0 to 1, the speed relative): opening
-## speeds up, glides and eases into the wall; closing glides, slows to a creep and stops
-## when the doors meet.
+## speeds up, glides and eases into the wall; closing gets going, glides steadily and slows
+## down for the last bit, settling shut at under half the glide's speed.
 const OPENING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.25, 1), Vector2(0.6, 1), Vector2(1, 0)]
-const CLOSING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.2, 1), Vector2(0.55, 1), Vector2(0.78, 0.15), Vector2(1, 0.15)]
+const CLOSING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.1, 1), Vector2(0.7, 1), Vector2(0.8, 0.4), Vector2(1, 0.4)]
 
 @export var floor_count := 3
+## Which way the doors open, the cab's and the landings' alike. This cab, the smallest,
+## has side-opening doors.
+@export var door_style := ElevatorDoor.Style.SIDE
 ## Seconds the doors take to open; closing takes [constant CLOSE_SLOWER] times as long.
 ## Faster doors lower it.
 @export var door_time := DOOR_TIME
@@ -60,8 +74,8 @@ const CLOSING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.2, 1), Vector2(0
 ## called; 1 adds a lamp per floor that lights while someone waits there; 2 makes a lamp
 ## blink when a guest there runs out of patience. The calls are tracked either way.
 @export var call_panel_level := 0
-## z of the middle of the hallways' landing walls, where the landing doors slide.
-@export var landing_z := CAB_HALF_WIDTH + 0.15
+## z of the middle of the hallways' landing walls, which the landing doors hang behind.
+@export var landing_z := LANDING_Z
 
 var current_floor := 0
 var doors_open := true
@@ -81,9 +95,8 @@ var _buttons := {} ## action -> ElevatorButton
 var _call_buttons: Array[ElevatorButton] = [] ## per floor, in the hallway
 
 var _cab: AnimatableBody3D
-## The cab's door panels: left leading, left trailing, right leading, right trailing.
-var _door_panels: Array[AnimatableBody3D] = []
-var _landing_doors: Array[Array] = [] ## per floor: its panels, in the same order
+var _cab_doors: ElevatorDoor
+var _landing_doors: Array[ElevatorDoor] = [] ## per floor
 var _door_from := 1.0 ## door_amount when the doors started moving
 var _door_to := 1.0
 var _displays: Array[FloorDisplay] = [] ## the cab's, then each landing's
@@ -201,7 +214,7 @@ func _build_cab() -> void:
 	Greybox.box(_cab, Vector3(side, h, WALL), Vector3(DOOR_OPENING / 2 + side / 2, h / 2, w), Color.WHITE, true, walls)
 	Greybox.box(_cab, Vector3(DOOR_OPENING, h - DOOR_HEIGHT, WALL), Vector3(0, (h + DOOR_HEIGHT) / 2, w), Color.WHITE, true, walls)
 	# And an inner front wall with the same opening, so the doors slide in between the two
-	# when they open, as the landing doors slide into the landing wall: from inside the cab
+	# when they open, as the landing doors slide behind the landing wall: from inside the cab
 	# the doors sit in the opening the way they do from the hallway.
 	var skin_side := w - WALL / 2 - DOOR_OPENING / 2
 	for sign_x in [-1.0, 1.0]:
@@ -211,7 +224,7 @@ func _build_cab() -> void:
 	var trim := Node3D.new()
 	trim.name = "Trim"
 	_cab.add_child(trim)
-	Interior.trim_cab(trim, w, h, WALL, CAB_SKIN_Z - SKIN / 2)
+	Interior.trim_cab(trim, w, h, WALL, CAB_SKIN_Z - SKIN / 2, door_style)
 
 	var light := OmniLight3D.new()
 	light.position = Vector3(0, h - 0.3, 0)
@@ -227,61 +240,37 @@ func _build_cab() -> void:
 	_displays.append(display)
 
 
-## The cab's door panels, between its front wall and its inner front wall: the trailing
-## panels nearest the front wall, the leading ones in front of them.
+## The cab's doors, between its front wall and its inner front wall: the trailing panels
+## nearest the front wall, the leading ones in front of them. Their leading edge reaches out
+## to just short of the landing doors, so the two look like one door as they move together.
 func _build_doors() -> void:
-	_door_panels = _make_panels(_cab, CAB_LEAD_Z, CAB_TRAIL_Z)
+	_cab_doors = ElevatorDoor.make(_cab, "CabDoors", door_style, CAB_LEAD_Z, CAB_TRAIL_Z)
+	# In the grey of the doorway between the two doors, just short of the front wall's outside,
+	# inside the lining.
+	_cab_doors.bridge_to(CAB_HALF_WIDTH + WALL / 2 - 0.002, Interior.flat(Hallway.SHAFT_GREY))
 
 
-## Four door panels under [param parent]: left leading, left trailing, right leading, right
-## trailing, the leading ones at z = [param lead_z] and the trailing ones at [param trail_z].
-func _make_panels(parent: Node3D, lead_z: float, trail_z: float) -> Array[AnimatableBody3D]:
-	var panels: Array[AnimatableBody3D] = []
-	for side in ["Left", "Right"]:
-		for lead in [true, false]:
-			var panel := AnimatableBody3D.new()
-			panel.name = "%sDoor%s" % [side, "Leading" if lead else "Trailing"]
-			# Synced to physics, a door's collision only follows its own moves, not the cab's:
-			# after a ride it stayed on the floor you left, and you walked through the shut doors.
-			panel.sync_to_physics = false
-			panel.position.z = lead_z if lead else trail_z
-			parent.add_child(panel)
-			Interior.door_panel(panel, PANEL_WIDTH, DOOR_HEIGHT, PANEL_THICKNESS)
-			panels.append(panel)
-	return panels
-
-
-## Puts [param panels] (as from [method _make_panels]) [param amount] of the way open:
-## shut, the four side by side across the opening; open, each side's pair stacked beside
-## it, [param tuck] further in.
-static func _place_panels(panels: Array, amount: float, tuck := 0.0) -> void:
-	for i in panels.size():
-		var side := -1.0 if i < 2 else 1.0
-		var lead := i % 2 == 0
-		var shut_x := PANEL_WIDTH * (0.5 if lead else 1.5)
-		var travel := PANEL_WIDTH * (2.0 if lead else 1.0) + tuck
-		var panel: Node3D = panels[i]
-		panel.position.x = side * (shut_x + travel * amount)
-		panel.position.y = DOOR_HEIGHT / 2
+## The cab's doors.
+func cab_doors() -> ElevatorDoor:
+	return _cab_doors
 
 
 ## The cab's door panels.
 func door_panels() -> Array[AnimatableBody3D]:
-	return _door_panels
+	return _cab_doors.panels()
 
 
-## Every floor's landing doors, in the opening of its landing wall (they slide into the
-## wall to open), and its call button on the hallway side, right of the opening.
+## Every floor's landing doors, hung on the shaft side of its landing wall (they slide in
+## behind the wall to open), and its call button on the hallway side, right of the opening.
 func _build_landings() -> void:
 	for f in floor_count:
 		var landing := Node3D.new()
 		landing.name = "Landing%d" % f
 		landing.position = Vector3(0, f * FLOOR_HEIGHT, 0)
 		add_child(landing)
-		# Inside the landing wall: the leading panels on the shaft side, the trailing ones on
-		# the hallway side.
-		var offset := PANEL_THICKNESS / 2 + 0.0025
-		_landing_doors.append(_make_panels(landing, landing_z - offset, landing_z + offset))
+		_landing_doors.append(ElevatorDoor.make(landing, "LandingDoors", door_style,
+				landing_z - LANDING_LEAD_BACK, landing_z - LANDING_TRAIL_BACK))
+		Interior.landing_backing(landing, 0.0, landing_z, door_style, FLOOR_HEIGHT - DOOR_HEIGHT)
 
 		var hall_face := landing_z + WALL / 2
 		var plate_at := Vector3(DOOR_OPENING / 2 + 0.3, 1.1, hall_face + 0.006)
@@ -308,8 +297,8 @@ func floor_displays() -> Array[FloorDisplay]:
 	return _displays
 
 
-## The landing doors and call button of floor [param f].
-func landing_doors(f: int) -> Array:
+## The landing doors of floor [param f].
+func landing_doors(f: int) -> ElevatorDoor:
 	return _landing_doors[f]
 
 
@@ -554,7 +543,7 @@ func _arrive(target: int) -> void:
 func _set_doors(open: bool, instant: bool) -> void:
 	if instant:
 		for f in floor_count:
-			_place_panels(_landing_doors[f], 0.0)
+			_landing_doors[f].show_open(0.0)
 		_show_doors(1.0 if open else 0.0)
 		doors_open = open
 		return
@@ -580,14 +569,11 @@ func _step_doors(t: float) -> void:
 
 
 ## Puts the cab's doors [param amount] of the way open, and the landing doors here with
-## them, a little behind: the cab's doors pick them up once they've gone [constant
-## LANDING_LAG] of the way. Open landing doors slide a little further, into the wall, so
-## their edges don't sit flush with the opening's sides and flicker through them.
+## them, edge to edge, so they look like one door.
 func _show_doors(amount: float) -> void:
 	door_amount = amount
-	_place_panels(_door_panels, amount)
-	var landing := clampf((amount - LANDING_LAG) / (1.0 - LANDING_LAG), 0.0, 1.0)
-	_place_panels(_landing_doors[current_floor], landing, LANDING_TUCK)
+	_cab_doors.show_open(amount)
+	_landing_doors[current_floor].show_open(amount)
 
 
 ## How far along a move with speed curve [param curve] (see [constant OPENING_SPEED]) the

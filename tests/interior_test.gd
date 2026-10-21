@@ -113,17 +113,35 @@ func _test_cab() -> void:
 		var overhead := box.position.y > Elevator.CAB_HEIGHT - 0.1
 		if not (flat_on_wall or overhead):
 			_check(false, "cab trim at %s is flat against a wall or overhead" % box.get_center())
-		var in_doorway := box.end.z > Elevator.CAB_LEAD_Z - Elevator.PANEL_THICKNESS / 2 # where the doors slide
 		var threshold := box.end.y < 0.01 # the strip on the floor the doors run in
-		if in_doorway and box.position.y < Elevator.DOOR_HEIGHT and not threshold:
-			_check(false, "cab trim at %s is clear of the doors" % box.get_center())
+		if _doors_overlap(box) and not threshold:
+			_check(false, "cab trim at %s is clear of the doors, shut and open" % box.get_center())
 		if is_equal_approx(box.get_center().y, Interior.HANDRAIL_HEIGHT) and maxf(box.size.x, box.size.z) > 1.0:
 			rails += 1
 	_check(rails == 2, "a handrail runs along the back and the right-hand wall")
+	# The buttons and the call panel take up z 0.2 to 0.75 of the -X wall.
 	var buttons_x := -(Elevator.CAB_HALF_WIDTH - Elevator.WALL / 2 - 0.02)
 	_check(trim.get_children().all(func(m: MeshInstance3D) -> bool:
 		var box: AABB = m.transform * m.get_aabb()
-		return not (box.position.x < buttons_x + 0.1 and box.position.y < 2.2 and box.end.y > 0.7 and box.end.z > 0.2)), "and none by the buttons")
+		return not (box.position.x < buttons_x + 0.1 and box.position.y < 2.2 and box.end.y > 0.7 and box.end.z > 0.2 and box.position.z < 0.75)), "and none by the buttons")
+
+
+## True if [param box] (in the cab's coordinates) overlaps any of the cab's door panels'
+## slabs, shut or open. (The steel edge that reaches out to the landing doors runs into the
+## lining when open, out of sight.)
+func _doors_overlap(box: AABB) -> bool:
+	var door := _elevator.cab_doors()
+	var was := door.amount
+	var hit := false
+	for amount in [0.0, 1.0]:
+		door.show_open(amount)
+		for panel in door.panels():
+			var slab := panel.find_children("*", "MeshInstance3D", false, false)[0] as MeshInstance3D
+			var steel: AABB = panel.transform * slab.transform * slab.get_aabb()
+			if steel.grow(-0.001).intersects(box):
+				hit = true
+	door.show_open(was)
+	return hit
 
 
 ## True if [param box] (in a hallway whose floor is at [param y]) lies flat against one of
