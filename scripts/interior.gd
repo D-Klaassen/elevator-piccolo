@@ -41,11 +41,9 @@ const CAB_FLOOR: Array = ["checker", 0.8, Color("2b2523"), Color("d8cfbd")]
 const CAB_CEILING: Array = ["plain", 1.0, Color("efe6d2")]
 const BRASS := Color("d9b25a")
 const STEEL := Color("a8acb4")
-const DOOR_JAMB := 0.06 ## width of the steel jamb round the elevator opening in the hallways
-## Brushed steel: grain colours and the light band's, over a door's height.
-const BRUSHED: Array = ["brushed", 2.2, Color("9a9ea6"), Color("8c9098"), Color("b4b8c0")]
+const DOOR_FRAME := 0.08 ## width of the frame round the elevator opening
 const HANDRAIL_HEIGHT := 0.9
-## The metadata on a trim piece that says what it is ("skirting", "door jamb"), for the
+## The metadata on a trim piece that says what it is ("skirting", "door frame"), for the
 ## Asset room to name it.
 const PART := &"part"
 
@@ -100,7 +98,6 @@ static func texture(surface: Array) -> ImageTexture:
 		"carpet": _draw_carpet(image, colours)
 		"panels": _draw_panels(image, colours)
 		"checker": _draw_checker(image, colours)
-		"brushed": _draw_brushed(image, colours)
 		_: image.fill(colours[0])
 	image.generate_mipmaps()
 	var tex := ImageTexture.create_from_image(image)
@@ -176,18 +173,6 @@ static func _draw_panels(image: Image, c: Array) -> void:
 		_rect(image, left, 0, 1, TEXTURE_SIZE, c[2])
 
 
-## A fine vertical grain, every column a little lighter or darker, with a soft light band
-## across it, which falls a quarter of the way down a door panel (at about 1.6 m).
-static func _draw_brushed(image: Image, c: Array) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 11
-	for x in TEXTURE_SIZE:
-		var grain: Color = (c[0] as Color).lerp(c[1], rng.randf())
-		for y in TEXTURE_SIZE:
-			var band := exp(-pow((y - TEXTURE_SIZE * 0.73) / (TEXTURE_SIZE * 0.06), 2.0))
-			image.set_pixel(x, y, grain.lerp(c[2], band * 0.7))
-
-
 static func _draw_checker(image: Image, c: Array) -> void:
 	var square := TEXTURE_SIZE / 2
 	for y in 2:
@@ -247,22 +232,8 @@ static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: flo
 		for sign_x in [-1.0, 1.0]:
 			_box(parent, Vector3(side - 0.1, rail, 0.04), Vector3(sign_x * (opening + 0.1 + (side - 0.1) / 2 - 0.05), rail_y, landing_face + 0.02), trim, "chair rail")
 
-	# Round the elevator opening on the hallway side: a deep brushed-steel jamb, and the
-	# hotel's own frame round that.
-	# The jamb overlaps the doors' outer edges a little, as a real one does, hiding them.
-	var jamb := DOOR_JAMB
-	var lap := 0.012
-	var jamb_depth := 0.05
-	var steel := brushed_steel()
-	for sign_x in [-1.0, 1.0]:
-		_box(parent, Vector3(jamb + lap, Elevator.DOOR_HEIGHT + jamb, jamb_depth), Vector3(sign_x * (opening + (jamb - lap) / 2), y + (Elevator.DOOR_HEIGHT + jamb) / 2, landing_face + jamb_depth / 2), steel, "door jamb")
-	_box(parent, Vector3(Elevator.DOOR_OPENING + 2 * jamb, jamb + lap, jamb_depth), Vector3(0, y + Elevator.DOOR_HEIGHT + (jamb - lap) / 2, landing_face + jamb_depth / 2), steel, "door jamb")
-	var frame := 0.1
-	var frame_z := landing_face + 0.02
-	var outer := opening + jamb
-	for sign_x in [-1.0, 1.0]:
-		_box(parent, Vector3(frame, Elevator.DOOR_HEIGHT + jamb + frame, 0.04), Vector3(sign_x * (outer + frame / 2), y + (Elevator.DOOR_HEIGHT + jamb + frame) / 2, frame_z), trim, "door frame")
-	_box(parent, Vector3(2 * (outer + frame), frame, 0.04), Vector3(0, y + Elevator.DOOR_HEIGHT + jamb + frame / 2, frame_z), trim, "door frame")
+	# The hotel's own frame round the elevator opening, on the hallway side.
+	_door_frame(parent, y, landing_z + Elevator.PANEL_THICKNESS + 0.005, landing_face + 0.02, trim)
 
 	# A dark metal threshold across the opening, from the doors' track to the hallway floor.
 	_threshold(parent, Vector3(0, y, (landing_z - 0.05 + landing_face + 0.06) / 2), 0.11 + 0.05)
@@ -284,32 +255,49 @@ static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: flo
 
 
 ## One door panel, [param width] by [param height] and [param thickness] thick, on [param
-## body]: brushed steel (a fine vertical grain with a soft light band across it, as the
-## light catches it) with a dark rubber edge down both sides, so the panels read as solid
-## slabs with seams between them, the same from either side.
+## body]: a plain slab of satin steel. Its collision fills its width, but it shows a few
+## millimetres narrower, so the panels meet in a thin dark seam.
 static func door_panel(body: Node3D, width: float, height: float, thickness: float) -> void:
-	Greybox.box(body, Vector3(width, height, thickness), Vector3.ZERO, Color.WHITE, true, brushed_steel())
-	var edge := 0.012
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(width, height, thickness)
+	shape.shape = box
+	body.add_child(shape)
+	Greybox.box(body, Vector3(width - 0.004, height, thickness), Vector3.ZERO, Color.WHITE, false, steel())
+
+
+## A flat frame round an elevator opening whose floor is at [param y], from z = [param
+## z_from] to [param z_to]: from just clear of the doors to a little proud of the wall. It
+## laps over the doors' outer edges, as a real jamb does, hiding them and the sides of the
+## opening.
+static func _door_frame(parent: Node3D, y: float, z_from: float, z_to: float, surface: Material) -> void:
+	var lap := 0.01
+	var width := DOOR_FRAME
+	var inner := Elevator.DOOR_OPENING / 2 - lap
+	var top := Elevator.DOOR_HEIGHT - lap
+	var depth := absf(z_to - z_from)
+	var z := (z_from + z_to) / 2
 	for sign_x in [-1.0, 1.0]:
-		_box(body, Vector3(edge, height, thickness + 0.004), Vector3(sign_x * (width - edge) / 2, 0, 0), flat(Color("2a2a2e")), "door panel edge")
+		_box(parent, Vector3(width, top + width, depth), Vector3(sign_x * (inner + width / 2), y + (top + width) / 2, z), surface, "door frame")
+	_box(parent, Vector3(2 * (inner + width), width, depth), Vector3(0, y + top + width / 2, z), surface, "door frame")
 
 
 ## A threshold strip across a door opening, [param depth] deep, its middle at [param at]
-## on the floor: dark metal, a few millimetres high, with a groove down the middle where
-## the doors run.
+## on the floor: dark metal, a few millimetres high.
 static func _threshold(parent: Node3D, at: Vector3, depth: float) -> void:
 	var width := Elevator.DOOR_OPENING + 0.04
 	_box(parent, Vector3(width, 0.006, depth), at + Vector3(0, 0.003, 0), flat(Color("4a4c52"), 0.4), "threshold")
-	_box(parent, Vector3(width, 0.007, 0.012), at + Vector3(0, 0.0035, 0), flat(Color("1c1c20")), "threshold")
 
 
-## Brushed steel for the doors, the door frames and the call plates. Fixed to each piece,
-## not to the world, as the cab's doors move.
-static func brushed_steel() -> StandardMaterial3D:
-	var steel := material(BRUSHED, true)
-	steel.metallic = 0.35
-	steel.roughness = 0.6
-	return steel
+## Satin steel for the doors, the floor displays and the call plates: one even colour, no
+## pattern, so it stays calm as you walk past.
+static func steel() -> StandardMaterial3D:
+	if not _materials.has("steel"):
+		var mat := Greybox.material(STEEL)
+		mat.metallic = 0.3
+		mat.roughness = 0.5
+		_materials["steel"] = mat
+	return _materials["steel"]
 
 
 ## Trims the cab ([param cab], [param w] its half width, [param h] its height): a light
@@ -345,11 +333,14 @@ static func trim_cab(cab: Node3D, w: float, h: float, wall: float, front_face: f
 		_box(cab, Vector3(skirt, 0.1, 0.015), Vector3(sign_x * (inner - skirt / 2), 0.05, front_face - 0.0075), dark, "skirting")
 
 	# A frame round the door, like the one round the landing doors on the hallway side.
-	var frame := 0.1
-	var frame_z := front_face - 0.02
-	for sign_x in [-1.0, 1.0]:
-		_box(cab, Vector3(frame, Elevator.DOOR_HEIGHT + frame, 0.04), Vector3(sign_x * (opening + frame / 2), (Elevator.DOOR_HEIGHT + frame) / 2, frame_z), dark, "door frame")
-	_box(cab, Vector3(Elevator.DOOR_OPENING + 2 * frame, frame, 0.04), Vector3(0, Elevator.DOOR_HEIGHT + frame / 2, frame_z), dark, "door frame")
+	_door_frame(cab, 0.0, front_face - 0.02, Elevator.CAB_LEAD_Z - Elevator.PANEL_THICKNESS / 2 - 0.0025, dark)
+	# Over the doors, between the two front walls, the dark header their track runs in, so
+	# looking up past the frame you don't see the front wall's wood above them.
+	var header_from := front_face + Elevator.SKIN
+	var header_to := w - wall / 2
+	var header_half := Elevator.DOOR_OPENING * 0.75 + 0.01 # just past the open doors' outer edges
+	var header_bottom := Elevator.DOOR_HEIGHT + 0.001
+	_box(cab, Vector3(2 * header_half, h - header_bottom, header_to - header_from), Vector3(0, (h + header_bottom) / 2, (header_from + header_to) / 2), flat(Color("1c1c20")), "door header")
 
 	# The threshold the doors run in, from the inner front wall to the front wall's outside.
 	var outside := w + wall / 2

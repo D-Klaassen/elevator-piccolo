@@ -1,6 +1,6 @@
 class_name FloorDisplay
 extends Node3D
-## A floor display over an elevator door: a black screen in a brushed-steel bezel, the floor
+## A floor display over an elevator door: a black screen in a steel bezel, the floor
 ## the cab is at in green digits, and an up and a down arrow beside them that light while
 ## the cab is on its way in that direction. It faces +Z.
 
@@ -15,9 +15,9 @@ var _down: MeshInstance3D
 
 func _init() -> void:
 	name = "FloorDisplay"
-	_box(Vector3(SIZE.x, SIZE.y, 0.02), Vector3(0, 0, 0.01), Interior.brushed_steel())
+	_box(Vector3(SIZE.x, SIZE.y, 0.02), Vector3(0, 0, 0.01), Interior.steel())
 	var glass := Greybox.material(Color(0.03, 0.035, 0.04))
-	glass.roughness = 0.2
+	glass.roughness = 0.9 # matt, so it shows no glare
 	_box(Vector3(SIZE.x - 0.05, SIZE.y - 0.05, 0.004), Vector3(0, 0, 0.022), glass)
 
 	_digits = Greybox.label(self, "0", Vector3(0.07, 0, 0.0245), 0.0, 36)
