@@ -1,5 +1,5 @@
 class_name DebugOptions
-## Switches that bend the rules for testing, in the Settings menu's Debug section, only in
+## Switches that bend the rules for testing, in the settings' Debug tab, only in
 ## debug builds: Infinite money, Skip hotel requirements and the game speed. They live
 ## only as long as the game runs, so every start begins with them off.
 

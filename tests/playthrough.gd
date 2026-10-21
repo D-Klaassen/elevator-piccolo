@@ -47,6 +47,7 @@ func _initialize() -> void:
 	Career.save_path = OS.get_temp_dir().path_join("elevator-piccolo-playthrough-%d.cfg" % OS.get_process_id())
 	Settings.save_path = OS.get_temp_dir().path_join("elevator-piccolo-playthrough-settings-%d.cfg" % OS.get_process_id())
 	DirAccess.remove_absolute(Career.save_path)
+	GameMenu.show_title = false
 	print("Playthrough: %s" % skill_name)
 	_play.call_deferred()
 

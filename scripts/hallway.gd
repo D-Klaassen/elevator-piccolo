@@ -10,8 +10,9 @@ const SHAFT_FRONT := 1.1 ## z where the landing wall starts, just in front of th
 const LANDING_Z := SHAFT_FRONT + 0.05
 
 
-## The hotel's light: a dark background and a warm ambient light.
-static func build_environment(parent: Node) -> void:
+## The hotel's light: a dark background and a warm ambient light. Returns it, for the
+## brightness setting.
+static func build_environment(parent: Node) -> Environment:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.08, 0.07, 0.06)
@@ -21,6 +22,7 @@ static func build_environment(parent: Node) -> void:
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	parent.add_child(world_env)
+	return env
 
 
 ## The pit floor, back and side walls of a shaft [param floors] floors high, around the cab.

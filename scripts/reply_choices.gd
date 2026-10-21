@@ -1,7 +1,7 @@
 class_name ReplyChoices
 extends PanelContainer
 ## The replies you can give a chatty guest, low in the HUD, in the order of their
-## [member Guest.offers], with a bar for the time you have left. What they said is in their
+## [member Guest.offers], with a bar for the time you have left (none without a time limit). What they said is in their
 ## own speech bubble. One reply is highlighted: W/S, the mouse wheel, the D-pad or the left
 ## stick move the highlight, and a click, E or A says it; 1-3 say one straight away. The
 ## mouse stays captured, so the view doesn't wander off the guest.
@@ -15,6 +15,8 @@ const STICK_TILT := 0.5 ## how far the left stick goes before it moves the highl
 
 ## Which reply is highlighted, from 0 at the top.
 var highlighted := 0
+## Seconds you have to answer, as [member GuestManager.reply_time]; 0 for no limit.
+var time_limit := GuestManager.REPLY_TIME
 
 var _lines: Array[Label] = []
 var _texts: Array[String] = []
@@ -51,7 +53,6 @@ func _ready() -> void:
 	_bar.name = "TimeLeft"
 	_bar.show_percentage = false
 	_bar.custom_minimum_size.y = 6
-	_bar.max_value = GuestManager.REPLY_TIME
 	var fill := StyleBoxFlat.new()
 	fill.bg_color = HIGHLIGHT
 	_bar.add_theme_stylebox_override("fill", fill)
@@ -72,7 +73,9 @@ func show_for(guest: Guest) -> void:
 	for i in _lines.size():
 		_lines[i].visible = i < _texts.size()
 	highlighted = 0
-	_time_left = GuestManager.REPLY_TIME
+	_time_left = time_limit
+	_bar.max_value = time_limit
+	_bar.visible = time_limit > 0.0
 	_update()
 	show()
 
@@ -87,7 +90,7 @@ func time_left() -> float:
 
 
 func _process(delta: float) -> void:
-	if visible:
+	if visible and time_limit > 0.0:
 		_time_left = maxf(_time_left - delta, 0.0)
 		_bar.value = _time_left
 

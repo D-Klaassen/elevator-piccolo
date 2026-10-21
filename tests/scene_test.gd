@@ -53,6 +53,7 @@ func _start() -> void:
 	DirAccess.remove_absolute(Career.save_path)
 	Settings.save_path = OS.get_temp_dir().path_join("elevator-piccolo-settings-%s-%d.cfg" % [_name(), OS.get_process_id()])
 	DirAccess.remove_absolute(Settings.save_path)
+	GameMenu.show_title = false
 	_load_scene(load("res://scenes/cabin_greybox.tscn").instantiate())
 	await physics_frame
 	await _run()

@@ -2,7 +2,7 @@ class_name Player
 extends CharacterBody3D
 ## First-person player: WASD or the left stick to walk, the mouse or the right stick to look,
 ## click (or A, or E) to press (or talk to) what you look at. Esc or Start opens the pause
-## menu ([SettingsMenu]), which frees the mouse. The actions are set up in [Controls].
+## menu ([GameMenu]), which frees the mouse. The actions are set up in [Controls].
 ## In a chat ([method focus_on]) you stand still and the view turns to the guest.
 
 signal looking_at_changed(text: String)
@@ -18,9 +18,18 @@ const NAME_META := &"display_name"
 ## How fast the player walks, in metres per second; the Asset room's walk speed slider
 ## raises it.
 var speed := SPEED
-## Multiplies [constant MOUSE_SENSITIVITY] and [constant STICK_LOOK_SPEED]; set from
-## [member Settings.look_sensitivity].
-var look_sensitivity := 1.0
+## Multiplies [constant MOUSE_SENSITIVITY]; set from [member Settings.mouse_sensitivity].
+var mouse_sensitivity := 1.0
+## Multiplies [constant STICK_LOOK_SPEED]; set from [member Settings.stick_sensitivity].
+var stick_sensitivity := 1.0
+## Up looks down and down looks up.
+var invert_y := false
+## The camera's vertical field of view, in degrees.
+var fov := 75.0:
+	set(value):
+		fov = value
+		if _camera:
+			_camera.fov = value
 
 var _camera: Camera3D
 var _ray: RayCast3D
@@ -43,7 +52,7 @@ func _ready() -> void:
 
 	_camera = Camera3D.new()
 	_camera.position.y = 1.6
-	_camera.fov = 75
+	_camera.fov = fov
 	add_child(_camera)
 
 	_ray = RayCast3D.new()
@@ -52,6 +61,14 @@ func _ready() -> void:
 	_camera.add_child(_ray)
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Takes the look settings from [param settings]: sensitivity, invert and field of view.
+func use_settings(settings: Settings) -> void:
+	mouse_sensitivity = settings.mouse_sensitivity
+	stick_sensitivity = settings.stick_sensitivity
+	invert_y = settings.invert_y
+	fov = settings.fov
 
 
 ## Holds still and turns the view to [param guest]'s face until [method release].
@@ -67,7 +84,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if is_instance_valid(_focus):
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		_turn(event.relative * MOUSE_SENSITIVITY * look_sensitivity)
+		_turn(event.relative * MOUSE_SENSITIVITY * mouse_sensitivity)
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -84,10 +101,11 @@ func _press_looked_at() -> void:
 		_looking_at.press()
 
 
-## Turns right by [code]by.x[/code] and looks down by [code]by.y[/code] radians.
+## Turns right by [code]by.x[/code] and looks down by [code]by.y[/code] radians (up, with
+## [member invert_y]).
 func _turn(by: Vector2) -> void:
 	rotate_y(-by.x)
-	_camera.rotate_x(-by.y)
+	_camera.rotate_x(by.y if invert_y else -by.y)
 	_camera.rotation.x = clampf(_camera.rotation.x, -1.4, 1.4)
 
 
@@ -108,7 +126,7 @@ func _physics_process(delta: float) -> void:
 	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
 	if look != Vector2.ZERO:
 		# Squared, so small tilts aim finely and a full tilt still turns quickly.
-		_turn(look * look.length() * STICK_LOOK_SPEED * look_sensitivity * delta)
+		_turn(look * look.length() * STICK_LOOK_SPEED * stick_sensitivity * delta)
 
 	_update_looking_at()
 

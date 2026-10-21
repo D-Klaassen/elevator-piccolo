@@ -1,8 +1,8 @@
 extends "res://tests/scene_test.gd"
 ## Headless scripted test of the debug options: Infinite money and Skip hotel requirements
-## bend the career's rules while they are on and leave the save honest; the Settings menu
-## has a Debug section with them only in debug builds, with the game speed and End shift
-## now, and the HUD says DEBUG while any is on.
+## bend the career's rules while they are on and leave the save honest; the settings have a
+## Debug tab with them only in debug builds, with the game speed and End shift now, and the
+## HUD says DEBUG while any is on.
 ##
 ## Run: tests/run.sh debug_test
 
@@ -52,9 +52,9 @@ func _test_skip_hotel_requirements() -> void:
 
 
 func _test_menu() -> void:
-	await _escape()
+	await _open_debug_tab()
 	var debug := _menu().find_child("Debug", true, false) as Control
-	_check(debug != null and debug.is_visible_in_tree(), "the pause menu has a Debug section")
+	_check(debug != null and debug.is_visible_in_tree(), "the settings have a Debug tab")
 	_check(_debug_label().text == "", "with everything off the HUD doesn't say DEBUG")
 
 	(_menu().find_child("InfiniteMoney", true, false) as BaseButton).button_pressed = true
@@ -72,6 +72,7 @@ func _test_menu() -> void:
 	speed.pressed.emit()
 	_check(speed.text == "Game speed: ×1" and Engine.time_scale == 1.0, "after ×8 it goes back to ×1")
 	await _escape()
+	await _escape()
 
 
 func _test_end_shift_now() -> void:
@@ -81,11 +82,11 @@ func _test_end_shift_now() -> void:
 	_shift.fares = 4.0
 	_shift.tips = 3.0
 	_shift.stars = 3.5
-	await _escape()
+	await _open_debug_tab()
 	(_menu().find_child("EndShiftNow", true, false) as Button).pressed.emit()
 	await process_frame
 	var report := _scene.find_child("ShiftReport", true, false) as Control
-	_check(_shift.is_over and report.visible and not _menu().visible, "End shift now ends the shift and shows the report")
+	_check(_shift.is_over and report.visible and not _menu().is_open(), "End shift now ends the shift and shows the report")
 	_check(_guests.guests().is_empty() and _shift.lost == 0 and _shift.stars == 3.5, "the guests are gone, without complaints")
 	var saved := Career.load_saved()
 	_check(saved.balance == 4.0 + 3.0 + Shift.WAGE and saved.ratings.size() == 1 and saved.ratings[0] == 3.5, "the shift counts as it stood: €12.00 with the wage, 3.5 ★")
@@ -94,7 +95,7 @@ func _test_end_shift_now() -> void:
 	(_scene.find_child("StaffRoom", true, false).find_child("Settings", true, false) as Button).pressed.emit()
 	var end := _menu().find_child("EndShiftNow", true, false) as Control
 	_check(end == null or not end.is_visible_in_tree(), "the staff room's settings have no End shift now")
-	(_menu().find_child("Close", true, false) as Button).pressed.emit()
+	(_menu().find_child("Back", true, false) as Button).pressed.emit()
 	(_scene.find_child("StaffRoom", true, false).find_child("StartShift", true, false) as Button).pressed.emit()
 	_load_scene(await _wait_for_new_scene())
 	_shift.spawning = false
@@ -111,8 +112,10 @@ func _test_release_build() -> void:
 	_load_scene(await _reload())
 	_shift.spawning = false
 	await _escape()
-	var debug := _menu().find_child("Debug", true, false) as Control
-	_check(debug == null or not debug.is_visible_in_tree(), "a release build has no Debug section")
+	(_menu().find_child("Screens", true, false).find_child("Settings", true, false) as Button).pressed.emit()
+	_check(_menu().find_child("Debug", true, false) == null and _menu().find_child("DebugTab", true, false) == null,
+			"a release build has no Debug tab")
+	await _escape()
 	await _escape()
 	DebugOptions.available = true
 
@@ -133,8 +136,16 @@ func _reload() -> Node3D:
 	return await _wait_for_new_scene()
 
 
-func _menu() -> SettingsMenu:
-	return _scene.find_child("SettingsMenu", true, false)
+func _menu() -> GameMenu:
+	return _scene.find_child("GameMenu", true, false)
+
+
+## Pauses and opens the settings on the Debug tab.
+func _open_debug_tab() -> void:
+	await _escape()
+	(_menu().find_child("Screens", true, false).find_child("Settings", true, false) as Button).pressed.emit()
+	(_menu().find_child("SettingsMenu", true, false) as SettingsMenu).select_tab("debug")
+	await process_frame
 
 
 func _debug_label() -> Label:
