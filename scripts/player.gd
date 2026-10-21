@@ -13,6 +13,9 @@ const REACH := 2.0
 ## The metadata the Asset room names a wall or a door panel with, for [method name_of].
 const NAME_META := &"display_name"
 
+## How fast the player walks, in metres per second; the Asset room's walk speed slider
+## raises it.
+var speed := SPEED
 ## Multiplies [constant MOUSE_SENSITIVITY] and [constant STICK_LOOK_SPEED]; set from
 ## [member Settings.look_sensitivity].
 var look_sensitivity := 1.0
@@ -77,8 +80,8 @@ func _physics_process(delta: float) -> void:
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
-	velocity.x = direction.x * SPEED
-	velocity.z = direction.z * SPEED
+	velocity.x = direction.x * speed
+	velocity.z = direction.z * speed
 	move_and_slide()
 
 	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
