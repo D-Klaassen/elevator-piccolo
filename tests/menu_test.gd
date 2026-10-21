@@ -44,6 +44,7 @@ func _test_title_without_save() -> void:
 func _test_credits() -> void:
 	_button("Credits").pressed.emit()
 	_check(_menu().screen == "credits" and _text(_menu()).contains("Kenney"), "Credits names who made the models")
+	_check(_text(_menu()).contains("Poly Haven") and _text(_menu()).contains("ambientCG"), "and the textures")
 	await _escape()
 	_check(_menu().screen == "main" and _button("Credits").has_focus(), "Esc goes back, on Credits")
 

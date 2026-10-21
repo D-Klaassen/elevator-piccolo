@@ -1,6 +1,6 @@
 extends "res://tests/scene_test.gd"
-## Headless scripted test of the hotels' and the cab's looks: every hotel's hallways have
-## patterned walls and floors in its own style, with skirting, a frame round the elevator,
+## Headless scripted test of the hotels' and the cab's looks: every surface is a PBR texture
+## set; every hotel's hallways have textured walls and floors in its own style, with skirting, a frame round the elevator,
 ## a ceiling and a lamp; none of it has collision or stands where you or the guests walk;
 ## the floor signs are readable on their plates; and the cab has panelled walls, a
 ## chequered floor, a ceiling light and a handrail, clear of the doors.
@@ -22,18 +22,22 @@ func _run() -> void:
 
 
 func _test_textures() -> void:
+	var surfaces: Array[Array] = [Interior.CAB_WALL, Interior.CAB_FLOOR, Interior.CAB_CEILING, Interior.CAB_TRIM, Interior.BRASS, Interior.STEEL, Interior.SILL]
 	for id in Interior.STYLES:
 		var s: Dictionary = Interior.STYLES[id]
-		for part in ["floor", "wall", "wainscot"]:
-			if (s[part] as Array).is_empty():
-				continue
-			var image := Interior.texture(s[part]).get_image()
-			var colours := {}
-			for y in range(0, image.get_height(), 3):
-				for x in range(0, image.get_width(), 3):
-					colours[image.get_pixel(x, y).to_html(false)] = true
-			_check(colours.size() >= 3, "%s's %s has a pattern (%d colours)" % [id, part, colours.size()])
+		for part in ["floor", "wall", "wainscot", "ceiling", "trim"]:
+			if not (s[part] as Array).is_empty():
+				surfaces.append(s[part])
 		_check(absf(_luminance(s.sign) - _luminance(s.sign_text)) > 0.4, "%s's floor signs stand out from their plates" % id)
+	var missing: Array[String] = []
+	for surface in surfaces:
+		var mat := Interior.material(surface)
+		for map: Texture2D in [mat.albedo_texture, mat.normal_texture, mat.roughness_texture]:
+			if map == null or map.get_width() < 512:
+				missing.append(surface[2])
+		if not (mat.normal_enabled and mat.ao_enabled):
+			missing.append(surface[2])
+	_check(missing.is_empty(), "every surface is a PBR set: colour, normal and ORM maps (%d surfaces, missing in %s)" % [surfaces.size(), missing])
 	_check(Interior.material(Interior.STYLES.cabin.wall) == Interior.material(Interior.STYLES.cabin.wall), "a material is made once and shared")
 
 
@@ -46,15 +50,15 @@ func _test_hotel(index: int) -> void:
 	var hotel := Hotels.at(index)
 
 	var plain := 0
-	var patterned := 0
+	var textured := 0
 	for body in _scene.get_children():
 		if body is StaticBody3D and (body as Node3D).position.z > Elevator.CAB_HALF_WIDTH + 0.1:
 			var mesh := body.get_child(0) as MeshInstance3D
-			if ((mesh.mesh as BoxMesh).material as StandardMaterial3D).albedo_texture:
-				patterned += 1
+			if ((mesh.mesh as BoxMesh).material as BaseMaterial3D).albedo_texture:
+				textured += 1
 			else:
 				plain += 1
-	_check(plain == 0 and patterned == hotel.floors * 7, "%s: every hallway floor and wall is patterned (%d plain)" % [hotel.name, plain])
+	_check(plain == 0 and textured == hotel.floors * 7, "%s: every hallway floor and wall is textured (%d plain)" % [hotel.name, plain])
 
 	for f in hotel.floors:
 		var y: float = f * Elevator.FLOOR_HEIGHT
@@ -95,13 +99,13 @@ func _test_cab() -> void:
 	if trim == null:
 		return
 	_check_no_collision(trim, "the cab's trim", true)
-	var patterned := 0
+	var textured := 0
 	for child in cab.get_children():
-		if child is MeshInstance3D and ((child.mesh as BoxMesh).material as StandardMaterial3D).albedo_texture:
-			patterned += 1
+		if child is MeshInstance3D and ((child.mesh as BoxMesh).material as BaseMaterial3D).albedo_texture:
+			textured += 1
 	# Floor, ceiling, back and side walls, the front wall in three and the inner front wall in three.
-	_check(patterned == 11, "the cab's floor, ceiling and walls are patterned (%d of 11)" % patterned)
-	var lit := trim.get_children().filter(func(m: Node) -> bool: return m is MeshInstance3D and ((m.mesh as BoxMesh).material as StandardMaterial3D).emission_enabled)
+	_check(textured == 11, "the cab's floor, ceiling and walls are textured (%d of 11)" % textured)
+	var lit := trim.get_children().filter(func(m: Node) -> bool: return m is MeshInstance3D and ((m.mesh as BoxMesh).material as BaseMaterial3D).emission_enabled)
 	_check(lit.size() == 1, "there's a light in its ceiling")
 
 	var inner := Elevator.CAB_HALF_WIDTH - Elevator.WALL / 2
@@ -187,7 +191,7 @@ func _plate_behind(sign: Label3D) -> MeshInstance3D:
 		return null
 	var colour: Color = Interior.style(Hotels.at(Career.load_saved().hotel).id).sign
 	for mesh: MeshInstance3D in _scene.find_child("Trim0", false, false).find_children("*", "MeshInstance3D", true, false):
-		var mat := (mesh.mesh as BoxMesh).material as StandardMaterial3D if mesh.mesh is BoxMesh else null
+		var mat := (mesh.mesh as BoxMesh).material as BaseMaterial3D if mesh.mesh is BoxMesh else null
 		if mat and mat.albedo_color == colour:
 			return mesh
 	return null

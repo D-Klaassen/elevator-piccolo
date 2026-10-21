@@ -1,33 +1,41 @@
 class_name Interior
-## The look of the hotel you work in and of the cab: flat, low-poly surfaces to go with
-## Kenney's characters and furniture. Every hotel has a style ([constant STYLES]): the
-## rustic cabin is log walls and plank floors, Pension Bellevue striped wallpaper over wood
-## panelling and a patterned carpet. The patterns are small textures drawn here in code,
-## laid over the boxes the rooms are built from (so a pattern runs on across walls), and
-## the trim (skirting, door frames, ceilings, lamps, handrails) is extra boxes and models
-## with no collision, so it never changes where you and the guests can walk.
+## The look of the hotel you work in and of the cab, to go with Kenney's characters and
+## furniture. Every hotel has a style ([constant STYLES]): the rustic cabin is log walls and
+## plank floors, Pension Bellevue cream wallpaper over dark wood panelling and a red carpet.
+## Every surface is a PBR texture set (colour, normal and ORM maps, CC0, from Poly Haven and
+## ambientCG; see CREDITS.md and tools/pbr_texture.sh) laid over the boxes the rooms are
+## built from (so it runs on across walls), and the trim (skirting, door frames, ceilings,
+## lamps, handrails) is extra boxes and models with no collision, so it never changes where
+## you and the guests can walk.
 
-const TEXTURE_SIZE := 128
+## Where the texture sets live, a folder per set with albedo.jpg, normal.jpg and orm.jpg.
+const TEXTURES := "res://assets/textures/"
+## How metallic the metal sets (steel, brass) are drawn, of what their ORM map says. There
+## are no reflection probes, so all fully metallic steel and brass would reflect is the
+## dim ambient light, and they'd look nearly black.
+const METAL_SHEEN := 0.4
 
-## Per hotel id: the hallway floor, walls, lower walls (wainscot, or [] for none) and
-## ceiling as [pattern, size in metres the texture covers, colours...]; then the colour of
-## the trim (skirting, chair rail, door frames), of the floor sign's plate and its text.
+## Per hotel id: the hallway floor, walls, lower walls (wainscot, or [] for none), ceiling
+## and trim (skirting, chair rail, door frames) as surfaces: [name, size in metres the
+## texture covers, texture set, tint (white if left out; over 1 brightens)]. The name is
+## what the Asset room calls it ("Pension Bellevue carpet floor"). Then the colour of the
+## floor sign's plate and its text.
 const STYLES := {
 	"cabin": {
-		"floor": ["planks", 1.6, Color("8a5a35"), Color("7b4f2e"), Color("4a2e1a")],
-		"wall": ["logs", 1.2, Color("b07a4a"), Color("9c6a3e"), Color("5e3b20")],
+		"floor": ["planks", 2.0, "old_wooden_floor_01"],
+		"wall": ["logs", 1.25, "wood_trunk_wall", Color(1.5, 1.25, 1.0)],
 		"wainscot": [],
-		"ceiling": ["planks", 2.0, Color("c49a6c"), Color("b88d60"), Color("8a6440")],
-		"trim": Color("5e3b20"),
+		"ceiling": ["planks", 1.9, "hinoki_planks", Color("e0c8a8")],
+		"trim": ["wood", 1.8, "walnut_veneer", Color("806048")],
 		"sign": Color("e8d5b0"),
 		"sign_text": Color("3a2414"),
 	},
 	"bellevue": {
-		"floor": ["carpet", 1.0, Color("7a2e2e"), Color("c9a24a"), Color("5a1f22")],
-		"wall": ["wallpaper", 0.8, Color("e9dcc0"), Color("d9c7a2"), Color("b89c6a")],
-		"wainscot": ["panels", 1.0, Color("6b4428"), Color("7d5232"), Color("4a2d19")],
-		"ceiling": ["plain", 1.0, Color("f2ead8")],
-		"trim": Color("c9a24a"),
+		"floor": ["carpet", 1.0, "Carpet013", Color("b85a5a")],
+		"wall": ["wallpaper", 1.0, "Wallpaper001A", Color("eadcbe")],
+		"wainscot": ["panels", 1.4, "dark_paneled_wood"],
+		"ceiling": ["plaster", 2.0, "PaintedPlaster017", Color("f6efe0")],
+		"trim": ["brass", 0.5, "Metal042A"],
 		"sign": Color("2e3d2f"),
 		"sign_text": Color("e9cf86"),
 	},
@@ -35,12 +43,16 @@ const STYLES := {
 const DEFAULT_STYLE := "bellevue"
 const WAINSCOT_HEIGHT := 1.0
 
-## The cab, the same in every hotel: wood panelling, a chequered floor, a brass handrail.
-const CAB_WALL: Array = ["panels", 0.9, Color("8c5a36"), Color("9d6a42"), Color("5c3820")]
-const CAB_FLOOR: Array = ["checker", 0.8, Color("2b2523"), Color("d8cfbd")]
-const CAB_CEILING: Array = ["plain", 1.0, Color("efe6d2")]
-const BRASS := Color("d9b25a")
-const STEEL := Color("a8acb4")
+## The cab, the same in every hotel: wood panelling, a chequered marble floor, a brass
+## handrail, dark wood round the door, brushed steel doors.
+const CAB_WALL: Array = ["panels", 2.1, "wooden_panels"]
+const CAB_FLOOR: Array = ["checker", 1.6, "Tiles012"]
+const CAB_CEILING: Array = ["plaster", 2.0, "PaintedPlaster017", Color("f2ead8")]
+const CAB_TRIM: Array = ["wood", 1.8, "walnut_veneer", Color("806048")]
+const BRASS: Array = ["brass", 0.5, "Metal042A"]
+const STEEL: Array = ["steel", 1.0, "Metal009"]
+## The threshold the doors run in: dark metal.
+const SILL: Array = ["metal", 0.5, "Metal009", Color("5a5c62")]
 const DOOR_FRAME := 0.08 ## width of the frame round the elevator opening
 const FRAME_LAP := 0.01 ## how far the frame laps over the opening's edge
 const CAB_FRAME_PROUD := 0.008 ## how far the cab's frame stands out from its inner front wall
@@ -52,7 +64,6 @@ const HANDRAIL_HEIGHT := 0.9
 ## Asset room to name it.
 const PART := &"part"
 
-static var _textures := {}
 static var _materials := {}
 
 
@@ -60,16 +71,31 @@ static func style(hotel_id: String) -> Dictionary:
 	return STYLES.get(hotel_id, STYLES[DEFAULT_STYLE])
 
 
-## A material that lays [param surface] ([pattern, metres, colours...]) over any box.
-## [param moving] boxes (the cab's) get the pattern fixed to themselves; still ones get it
-## fixed in the world, so it runs on from one box to the next.
+## A material that lays [param surface] ([name, metres, texture set, tint]) over any box.
+## [param moving] boxes (the cab's and its doors') get the texture fixed to themselves;
+## still ones get it fixed in the world, so it runs on from one box to the next.
 static func material(surface: Array, moving := false) -> StandardMaterial3D:
 	var key := "%s|%s" % [str(surface), moving]
 	if _materials.has(key):
 		return _materials[key]
+	var maps: String = TEXTURES + surface[2]
 	var mat := StandardMaterial3D.new()
-	mat.roughness = 0.85
-	mat.albedo_texture = texture(surface)
+	mat.albedo_texture = load(maps + "/albedo.jpg")
+	mat.albedo_color = surface[3] if surface.size() > 3 else Color.WHITE
+	mat.normal_enabled = true
+	mat.normal_texture = load(maps + "/normal.jpg")
+	# One ORM texture for all three, a channel each. (An ORMMaterial3D reads it too, but
+	# ignores the metallic setting, so the metal would come out black.)
+	var orm: Texture2D = load(maps + "/orm.jpg")
+	mat.ao_enabled = true
+	mat.ao_texture = orm
+	mat.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	mat.roughness_texture = orm
+	mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
+	mat.roughness = 1.0
+	mat.metallic_texture = orm
+	mat.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_BLUE
+	mat.metallic = METAL_SHEEN
 	mat.uv1_triplanar = true
 	mat.uv1_world_triplanar = not moving
 	mat.uv1_triplanar_sharpness = 8.0
@@ -79,123 +105,13 @@ static func material(surface: Array, moving := false) -> StandardMaterial3D:
 	return mat
 
 
-static func flat(color: Color, metallic := 0.0) -> StandardMaterial3D:
-	var key := "flat|%s|%s" % [color.to_html(), metallic]
+## A plain [param color], for what is painted rather than made of something: the floor
+## signs' plates and the shaft.
+static func flat(color: Color) -> StandardMaterial3D:
+	var key := "flat|%s" % color.to_html()
 	if not _materials.has(key):
-		var mat := Greybox.material(color)
-		mat.metallic = metallic
-		mat.roughness = 0.45 if metallic > 0.0 else 0.8
-		_materials[key] = mat
+		_materials[key] = Greybox.material(color)
 	return _materials[key]
-
-
-## The texture for [param surface], drawn once and then reused.
-static func texture(surface: Array) -> ImageTexture:
-	var key := str(surface)
-	if _textures.has(key):
-		return _textures[key]
-	var colours: Array = surface.slice(2)
-	var image := Image.create(TEXTURE_SIZE, TEXTURE_SIZE, false, Image.FORMAT_RGB8)
-	match surface[0]:
-		"planks": _draw_planks(image, colours, 16)
-		"logs": _draw_logs(image, colours)
-		"wallpaper": _draw_wallpaper(image, colours)
-		"carpet": _draw_carpet(image, colours)
-		"panels": _draw_panels(image, colours)
-		"checker": _draw_checker(image, colours)
-		_: image.fill(colours[0])
-	image.generate_mipmaps()
-	var tex := ImageTexture.create_from_image(image)
-	_textures[key] = tex
-	return tex
-
-
-## Boards in rows of [param row] pixels, each row cut at different places, with a dark seam.
-static func _draw_planks(image: Image, c: Array, row: int) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7
-	for top in range(0, TEXTURE_SIZE, row):
-		var x := -rng.randi_range(0, 48)
-		var tone := 0
-		while x < TEXTURE_SIZE:
-			var length := rng.randi_range(40, 72)
-			var colour: Color = (c[tone % 2] as Color).lightened(rng.randf_range(-0.04, 0.04))
-			_rect(image, x, top, length, row, colour)
-			_rect(image, x, top, 1, row, c[2]) # the joint between two boards
-			x += length
-			tone += 1
-		_rect(image, 0, top, TEXTURE_SIZE, 1, c[2])
-
-
-## Logs: rows that are lighter in the middle and dark in the gap between them.
-static func _draw_logs(image: Image, c: Array) -> void:
-	var row := 32
-	for top in range(0, TEXTURE_SIZE, row):
-		var colour: Color = c[(top / row) % 2]
-		for y in row:
-			var curve := sin(PI * (y + 0.5) / row) # 0 at the edges, 1 in the middle
-			_rect(image, 0, top + y, TEXTURE_SIZE, 1, (c[2] as Color).lerp(colour, clampf(curve * 1.6, 0.0, 1.0)))
-		_rect(image, 0, top, TEXTURE_SIZE, 2, c[2])
-
-
-## Vertical stripes with a thin line between them and a small diamond in the light ones.
-static func _draw_wallpaper(image: Image, c: Array) -> void:
-	var stripe := 16
-	for left in range(0, TEXTURE_SIZE, stripe):
-		var light := (left / stripe) % 2 == 0
-		_rect(image, left, 0, stripe, TEXTURE_SIZE, c[0] if light else c[1])
-		_rect(image, left, 0, 1, TEXTURE_SIZE, c[2])
-		if light:
-			for top in range(8, TEXTURE_SIZE, 32):
-				_diamond(image, left + stripe / 2, top, 3, c[2])
-
-
-## A diamond lattice with a gold dot in every diamond.
-static func _draw_carpet(image: Image, c: Array) -> void:
-	image.fill(c[0])
-	var cell := 32
-	for y in TEXTURE_SIZE:
-		for x in TEXTURE_SIZE:
-			var u := posmod(x + y, cell)
-			var v := posmod(x - y, cell)
-			if u < 2 or v < 2:
-				image.set_pixel(x, y, c[2])
-	for cy in range(0, TEXTURE_SIZE, cell):
-		for cx in range(0, TEXTURE_SIZE, cell):
-			_diamond(image, cx + cell / 2, cy, 4, c[1])
-			_diamond(image, cx, cy + cell / 2, 4, c[1])
-
-
-## Raised panels: a frame round a lighter panel, a dark line where they meet.
-static func _draw_panels(image: Image, c: Array) -> void:
-	image.fill(c[0])
-	var panel := TEXTURE_SIZE / 2
-	for top in range(0, TEXTURE_SIZE, TEXTURE_SIZE):
-		for left in range(0, TEXTURE_SIZE, panel):
-			_rect(image, left + 8, top + 10, panel - 16, TEXTURE_SIZE - 20, c[2])
-			_rect(image, left + 9, top + 11, panel - 18, TEXTURE_SIZE - 22, c[1])
-	for left in range(0, TEXTURE_SIZE, panel):
-		_rect(image, left, 0, 1, TEXTURE_SIZE, c[2])
-
-
-static func _draw_checker(image: Image, c: Array) -> void:
-	var square := TEXTURE_SIZE / 2
-	for y in 2:
-		for x in 2:
-			_rect(image, x * square, y * square, square, square, c[(x + y) % 2])
-
-
-static func _rect(image: Image, x: int, y: int, w: int, h: int, colour: Color) -> void:
-	var r := Rect2i(x, y, w, h).intersection(Rect2i(0, 0, TEXTURE_SIZE, TEXTURE_SIZE))
-	if r.has_area():
-		image.fill_rect(r, colour)
-
-
-static func _diamond(image: Image, cx: int, cy: int, radius: int, colour: Color) -> void:
-	for dy in range(-radius, radius + 1):
-		for dx in range(-radius, radius + 1):
-			if absi(dx) + absi(dy) <= radius:
-				image.set_pixel(posmod(cx + dx, TEXTURE_SIZE), posmod(cy + dy, TEXTURE_SIZE), colour)
 
 
 ## Trims one hallway (at height [param y], walls [param wall_h] high) in [param hotel_id]'s
@@ -207,7 +123,7 @@ static func _diamond(image: Image, cx: int, cy: int, radius: int, colour: Color)
 ## out, and its trim with it. Every piece is named for the Asset room (see [method _box]).
 static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: float, half: float, landing_z: float, back: float, sign: Label3D, open_right := false) -> void:
 	var s := style(hotel_id)
-	var trim := flat(s.trim, 0.2 if hotel_id == "bellevue" else 0.0)
+	var trim := material(s.trim)
 	var depth := back - landing_z
 	var mid_z := (landing_z + back) / 2
 	var inner := half - 0.05 # the side walls' inner faces
@@ -263,7 +179,7 @@ static func trim_hallway(parent: Node3D, hotel_id: String, y: float, wall_h: flo
 
 
 ## One door panel, [param width] by [param height] and [param thickness] thick, on [param
-## body]: a plain slab of satin steel. Its collision fills its width; the steel reaches
+## body]: a plain slab of brushed steel. Its collision fills its width; the steel reaches
 ## [param minus_x] metres past it on its -X edge, [param plus_x] on its +X edge (stopping
 ## short if negative) and [param up] over its top, so it laps over the next panel or in
 ## behind the frame and there's no slit to look through.
@@ -332,28 +248,24 @@ static func _door_frame(parent: Node3D, y: float, z_from: float, z_to: float, su
 
 
 ## A threshold strip across a door opening, [param depth] deep, its middle at [param at]
-## on the floor: dark metal, a few millimetres high.
+## on the floor: dark metal, a few millimetres high, its grain fixed to itself as the cab's
+## moves.
 static func _threshold(parent: Node3D, at: Vector3, depth: float) -> void:
 	var width := Elevator.DOOR_OPENING + 0.04
-	_box(parent, Vector3(width, 0.006, depth), at + Vector3(0, 0.003, 0), flat(Color("4a4c52"), 0.4), "threshold")
+	_box(parent, Vector3(width, 0.006, depth), at + Vector3(0, 0.003, 0), material(SILL, true), "threshold")
 
 
-## Satin steel for the doors, the floor displays and the call plates: one even colour, no
-## pattern, so it stays calm as you walk past.
+## Brushed steel for the doors, the floor displays and the call plates: one even grain, no
+## pattern, so it stays calm as you walk past. Fixed to each box, as the doors move.
 static func steel() -> StandardMaterial3D:
-	if not _materials.has("steel"):
-		var mat := Greybox.material(STEEL)
-		mat.metallic = 0.3
-		mat.roughness = 0.5
-		_materials["steel"] = mat
-	return _materials["steel"]
+	return material(STEEL, true)
 
 
 ## Trims the cab ([param cab], [param w] its half width, [param h] its height, its doors
 ## of [param style]): a light in the ceiling, a brass handrail on the back and right-hand
 ## walls, a skirting, and the frame, lining, jamb and header round the doors.
 static func trim_cab(cab: Node3D, w: float, h: float, wall: float, front_face: float, style: ElevatorDoor.Style) -> void:
-	var brass := flat(BRASS, 0.2)
+	var brass := material(BRASS, true)
 	var inner := w - wall / 2
 	var light := Greybox.material(Color("fff6e0"))
 	light.emission_enabled = true
@@ -373,7 +285,7 @@ static func trim_cab(cab: Node3D, w: float, h: float, wall: float, front_face: f
 
 	# Skirting on the back and side walls and on the inner front wall (at [param front_face],
 	# which the open doors slide behind), either side of the door.
-	var dark := flat(CAB_WALL[4])
+	var dark := material(CAB_TRIM, true)
 	_box(cab, Vector3(2 * inner, 0.1, 0.015), Vector3(0, 0.05, -inner + 0.0075), dark, "skirting")
 	for x in [-inner + 0.0075, inner - 0.0075]:
 		_box(cab, Vector3(0.015, 0.1, front_face + inner), Vector3(x, 0.05, (front_face - inner) / 2), dark, "skirting")

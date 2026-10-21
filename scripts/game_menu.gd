@@ -16,6 +16,7 @@ const BUTTON_SIZE := Vector2(280, 40)
 ## Who made what, as in CREDITS.md.
 const CREDITS: Array[Array] = [
 	["Models", "Furniture Kit and Mini Characters by Kenney (CC0)"],
+	["Textures", "Poly Haven (Amal Kumar, Charlotte Baglioni, Dario Barresi, Dimitrios Savva, Jenelle van Heerden) and ambientCG (all CC0)"],
 	["Music", "Bossa Nova by Joth, Somewhere in the Elevator by Peachtea, Two Left Socks by congusbongus (all CC0)"],
 	["Sounds and textures", "Made in code"],
 	["Engine", "Godot Engine"],

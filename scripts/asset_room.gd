@@ -227,7 +227,7 @@ func _elevator_door(asset_name: String, style: ElevatorDoor.Style) -> Node3D:
 		Greybox.box(holder, Vector3(side, height, Elevator.WALL), Vector3(sign_x * (opening + side / 2), height / 2, 0), Color.WHITE, true, wall)
 	var lintel := height - Elevator.DOOR_HEIGHT
 	Greybox.box(holder, Vector3(2 * opening, lintel, Elevator.WALL), Vector3(0, Elevator.DOOR_HEIGHT + lintel / 2, 0), Color.WHITE, true, wall)
-	Interior.landing_frame(holder, 0.0, 0.0, Interior.flat(Interior.CAB_WALL[4]))
+	Interior.landing_frame(holder, 0.0, 0.0, Interior.material(Interior.CAB_TRIM))
 	Interior.landing_sill(holder, 0.0, 0.0)
 	Interior.landing_backing(holder, 0.0, 0.0, style, lintel - 0.002)
 	var door := ElevatorDoor.make(holder, "Doors", style, -Elevator.LANDING_LEAD_BACK, -Elevator.LANDING_TRAIL_BACK)
