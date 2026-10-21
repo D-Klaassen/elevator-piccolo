@@ -198,28 +198,27 @@ func _build_cab() -> void:
 	_cab.name = "Cab"
 	add_child(_cab)
 
-	var walls := Interior.material(Interior.CAB_WALL, true)
 	var w := CAB_HALF_WIDTH
 	var h := CAB_HEIGHT
 	# Floor and ceiling.
-	Greybox.box(_cab, Vector3(2 * w + WALL, WALL, 2 * w + WALL), Vector3(0, -WALL / 2, 0), Color.WHITE, true, Interior.material(Interior.CAB_FLOOR, true))
-	Greybox.box(_cab, Vector3(2 * w + WALL, WALL, 2 * w + WALL), Vector3(0, h + WALL / 2, 0), Color.WHITE, true, Interior.material(Interior.CAB_CEILING, true))
+	_cab_box(Vector3(2 * w + WALL, WALL, 2 * w + WALL), Vector3(0, -WALL / 2, 0), Interior.CAB_FLOOR)
+	_cab_box(Vector3(2 * w + WALL, WALL, 2 * w + WALL), Vector3(0, h + WALL / 2, 0), Interior.CAB_CEILING)
 	# Back and side walls.
-	Greybox.box(_cab, Vector3(2 * w, h, WALL), Vector3(0, h / 2, -w), Color.WHITE, true, walls)
-	Greybox.box(_cab, Vector3(WALL, h, 2 * w), Vector3(-w, h / 2, 0), Color.WHITE, true, walls)
-	Greybox.box(_cab, Vector3(WALL, h, 2 * w), Vector3(w, h / 2, 0), Color.WHITE, true, walls)
+	_cab_box(Vector3(2 * w, h, WALL), Vector3(0, h / 2, -w))
+	_cab_box(Vector3(WALL, h, 2 * w), Vector3(-w, h / 2, 0))
+	_cab_box(Vector3(WALL, h, 2 * w), Vector3(w, h / 2, 0))
 	# Front wall with a door opening in the middle.
 	var side := w - DOOR_OPENING / 2
-	Greybox.box(_cab, Vector3(side, h, WALL), Vector3(-(DOOR_OPENING / 2 + side / 2), h / 2, w), Color.WHITE, true, walls)
-	Greybox.box(_cab, Vector3(side, h, WALL), Vector3(DOOR_OPENING / 2 + side / 2, h / 2, w), Color.WHITE, true, walls)
-	Greybox.box(_cab, Vector3(DOOR_OPENING, h - DOOR_HEIGHT, WALL), Vector3(0, (h + DOOR_HEIGHT) / 2, w), Color.WHITE, true, walls)
+	_cab_box(Vector3(side, h, WALL), Vector3(-(DOOR_OPENING / 2 + side / 2), h / 2, w))
+	_cab_box(Vector3(side, h, WALL), Vector3(DOOR_OPENING / 2 + side / 2, h / 2, w))
+	_cab_box(Vector3(DOOR_OPENING, h - DOOR_HEIGHT, WALL), Vector3(0, (h + DOOR_HEIGHT) / 2, w))
 	# And an inner front wall with the same opening, so the doors slide in between the two
 	# when they open, as the landing doors slide behind the landing wall: from inside the cab
 	# the doors sit in the opening the way they do from the hallway.
 	var skin_side := w - WALL / 2 - DOOR_OPENING / 2
 	for sign_x in [-1.0, 1.0]:
-		Greybox.box(_cab, Vector3(skin_side, h, SKIN), Vector3(sign_x * (DOOR_OPENING / 2 + skin_side / 2), h / 2, CAB_SKIN_Z), Color.WHITE, true, walls)
-	Greybox.box(_cab, Vector3(DOOR_OPENING, h - DOOR_HEIGHT, SKIN), Vector3(0, (h + DOOR_HEIGHT) / 2, CAB_SKIN_Z), Color.WHITE, true, walls)
+		_cab_box(Vector3(skin_side, h, SKIN), Vector3(sign_x * (DOOR_OPENING / 2 + skin_side / 2), h / 2, CAB_SKIN_Z))
+	_cab_box(Vector3(DOOR_OPENING, h - DOOR_HEIGHT, SKIN), Vector3(0, (h + DOOR_HEIGHT) / 2, CAB_SKIN_Z))
 	# Handrail, ceiling light and skirting: looks only, no collision.
 	var trim := Node3D.new()
 	trim.name = "Trim"
@@ -259,6 +258,12 @@ func cab_doors() -> ElevatorDoor:
 func door_panels() -> Array[AnimatableBody3D]:
 	return _cab_doors.panels()
 
+
+
+## A box of the cab, with collision, of [param surface] (the cab's walls by default), its
+## texture lined up with the cab's other boxes.
+func _cab_box(size: Vector3, center: Vector3, surface := Interior.CAB_WALL) -> void:
+	Greybox.box(_cab, size, center, Color.WHITE, true, Interior.material(surface, true, center))
 
 ## Every floor's landing doors, hung on the shaft side of its landing wall (they slide in
 ## behind the wall to open), and its call button on the hallway side, right of the opening.
