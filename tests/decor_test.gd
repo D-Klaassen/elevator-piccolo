@@ -1,7 +1,8 @@
 extends "res://tests/scene_test.gd"
 ## Headless scripted test of the furniture: every hallway in every hotel is furnished for
 ## what's on its floor, nothing stands in the way of the guests' walks, and the music box
-## grows from a radio to a radio with speakers.
+## grows from a radio to a radio with speakers: silent without it, then playing more
+## tracks with a richer sound at every level.
 ##
 ## Run: tests/run.sh decor_test
 
@@ -66,16 +67,36 @@ func _clear_of_walks(box: AABB) -> bool:
 
 
 func _test_music_box() -> void:
-	for level in [1, 2, 3]:
+	for level in [0, 1, 2, 3]:
 		var c := Career.new()
 		c.upgrades = {Upgrades.MUSIC: level}
 		c.save()
 		_load_scene(await _reload())
 		_shift.spawning = false
-		var box := _scene.find_child("MusicBox", true, false)
-		var radios := box.find_children("Radio", "", true, false).size() if box else 0
-		var speakers := box.find_children("SpeakerSmall*", "", true, false).size() if box else 0
+		var box := _elevator.music_box()
+		if level == 0:
+			_check(box == null and _scene.find_child("MusicBox", true, false) == null, "music level 0: no music box, so the cab is silent")
+			continue
+		var radios := box.find_children("Radio", "", true, false).size()
+		var speakers := box.find_children("SpeakerSmall*", "", true, false).size()
 		_check(radios == 1 and speakers == [0, 2, 4][level - 1], "music level %d: a radio and %d speakers in the cab" % [level, speakers])
+		var playlist := MusicBox.playlist(level)
+		_check(playlist.size() == level and box.is_playing() and box.track in playlist, "and it plays %s, one of %d tracks" % [box.track.get("name"), playlist.size()])
+		var shuffled: Array[String] = []
+		var shuffles_well := true
+		for i in 6:
+			var before: Dictionary = box.track
+			box.next_track()
+			shuffled.append(box.track.name)
+			shuffles_well = shuffles_well and box.track in playlist and (playlist.size() == 1 or box.track != before)
+		_check(shuffles_well, "then %s, never the same one twice in a row unless it's the only one" % ", ".join(shuffled))
+		_check(box.bus_name() == MusicBox.BUS and AudioServer.get_bus_send(AudioServer.get_bus_index(MusicBox.BUS)) == &"Master", "through the music bus into the master bus, so the volume setting turns it down")
+		var bus := AudioServer.get_bus_index(MusicBox.BUS)
+		var sound: Dictionary = MusicBox.SOUND[level]
+		_check(AudioServer.is_bus_effect_enabled(bus, 0) == sound.radio and AudioServer.is_bus_effect_enabled(bus, 1) == sound.radio and AudioServer.is_bus_effect_enabled(bus, 2) == sound.echo, "it sounds %s" % ["like a small radio" if sound.radio else "full, with an echo" if sound.echo else "full"])
+		_check(is_equal_approx(box.volume_db(), sound.volume_db + box.track.gain_db), "at %.0f dB" % box.volume_db())
+	var louder := MusicBox.SOUND.slice(1).map(func(s: Dictionary) -> float: return s.volume_db)
+	_check(louder[0] < louder[1] and louder[1] < louder[2], "every level plays louder than the one before")
 
 
 func _reload() -> Node3D:

@@ -1,7 +1,9 @@
 extends "res://tests/scene_test.gd"
 ## Headless scripted test of playing with a controller: the right stick turns the view (as
 ## fast as the look sensitivity says), the left stick walks, A presses the button you look
-## at, Start pauses, the D-pad moves through the menu and B closes it.
+## at, Start pauses, the D-pad moves through the menu and B closes it. In a chat the D-pad
+## or the left stick moves through the replies and A says one, while the sticks can't walk
+## you away or turn the view off the guest.
 ##
 ## Run: tests/run.sh controller_test
 
@@ -11,6 +13,7 @@ func _run() -> void:
 	await _test_look()
 	await _test_walk()
 	await _test_press()
+	await _test_chat()
 	await _test_menu()
 
 
@@ -78,6 +81,46 @@ func _test_menu() -> void:
 	_check(not menu.visible and not paused, "A on Resume does too")
 
 
+func _test_chat() -> void:
+	var player := _player()
+	var replies: ReplyChoices = _scene.find_child("ReplyChoices", true, false)
+	_guests.chat_chance = 1.0
+	var g := _guests.spawn_guest(0, 2)
+	g.patience = 600
+	g.ride_patience = 600
+	g.reply_order = [Guest.Reply.NEUTRAL, Guest.Reply.GOOD, Guest.Reply.BAD] as Array[Guest.Reply]
+	_press("open")
+	_check(await _wait_until(func() -> bool: return g.state == Guest.State.RIDING), "a chatty guest boards")
+	_aim_at_point(g.mouth())
+	await physics_frame
+	await physics_frame
+	await _tap(JOY_BUTTON_A)
+	_check(_guests.talking_to == g and replies.visible, "A on a guest asks their floor, and they strike up a chat")
+	_check(not g.answered, "the same press doesn't say a reply")
+
+	await _tap(JOY_BUTTON_DPAD_DOWN)
+	_check(replies.highlighted == 1, "D-pad down moves to the next reply")
+	await _tap(JOY_BUTTON_DPAD_UP)
+	await _hold_stick(JOY_AXIS_LEFT_Y, 1.0, 0.3)
+	_check(replies.highlighted == 1, "D-pad up and the left stick move through them too")
+	var start := player.global_position
+	await _hold_stick(JOY_AXIS_LEFT_X, -1.0, 0.3)
+	_check(player.global_position.distance_to(start) < 0.01, "the left stick doesn't walk you away")
+	await _hold_stick(JOY_AXIS_RIGHT_X, 1.0, 0.5)
+	var camera := player.get_viewport().get_camera_3d()
+	var off := (-camera.global_basis.z).angle_to(g.mouth() - camera.global_position)
+	_check(off < 0.15, "the right stick doesn't turn the view off the guest (%.2f rad off)" % off)
+
+	await _tap(JOY_BUTTON_A)
+	_check(g.answered and g.reply == Guest.Reply.GOOD, "A says the highlighted reply")
+	_check(not replies.visible and _guests.talking_to == null, "and the chat is over")
+	await _hold_stick(JOY_AXIS_LEFT_X, -1.0, 0.3)
+	_check(player.global_position.distance_to(start) > 0.2, "the left stick walks again")
+	player.global_position = start
+	_guests.clear()
+	_guests.chat_chance = 0.0
+
+
 ## Holds [param axis] at [param value] for [param seconds], then lets go.
 func _hold_stick(axis: JoyAxis, value: float, seconds: float) -> void:
 	var event := InputEventJoypadMotion.new()
@@ -105,9 +148,13 @@ func _tap(button: JoyButton) -> void:
 
 ## Turns the player and tilts the camera to look straight at [param target].
 func _aim_at(target: Node3D) -> void:
+	_aim_at_point(target.global_position)
+
+
+func _aim_at_point(point: Vector3) -> void:
 	var player := _player()
 	var camera := player.get_viewport().get_camera_3d()
-	var to := target.global_position - camera.global_position
+	var to := point - camera.global_position
 	player.rotation.y = atan2(-to.x, -to.z)
 	camera.rotation.x = atan2(to.y, Vector2(to.x, to.z).length())
 

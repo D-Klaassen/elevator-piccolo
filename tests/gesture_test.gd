@@ -12,6 +12,7 @@ const MIMES: Array[String] = [Gestures.SUITCASE, Gestures.EATING, Gestures.SWIMM
 
 func _run() -> void:
 	_shift.spawning = false
+	_guests.chat_chance = 0.0 # chats have their own test
 	_guests.patience_scale = 10.0
 	_test_every_model()
 	_test_poses()
