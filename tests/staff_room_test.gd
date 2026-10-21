@@ -10,7 +10,7 @@ func _run() -> void:
 	_test_buying()
 	_shift.spawning = false
 	_check(_elevator.door_time == Elevator.DOOR_TIME and _guests.capacity == 3 and _guests.ride_patience_scale == 1.0, "a fresh career starts with the standard cab")
-	_check(_scene.find_child("MusicBox", true, false) == null, "and a silent one")
+	_check(_scene.find_child("MusicBox", true, false) == null and _elevator.music_box() == null, "and a silent one")
 	await _test_no_call_panel()
 	await _test_staff_room()
 	await _test_bigger_cab()
@@ -77,6 +77,7 @@ func _test_staff_room() -> void:
 	await _start_shift()
 
 	_check(_elevator.music_level == 1 and _scene.find_child("MusicBox", true, false) != null, "the next shift there's a music box in the cab")
+	_check(_elevator.music_box().is_playing(), "and it plays %s" % _elevator.music_box().track.get("name"))
 	_check(_elevator.door_time == Upgrades.DOOR_TIME[1], "and the doors are faster")
 	var started := Time.get_ticks_msec()
 	_press("close")

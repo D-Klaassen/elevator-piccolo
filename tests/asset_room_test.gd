@@ -2,8 +2,9 @@ extends "res://tests/scene_test.gd"
 ## Headless scripted test of the Asset room: the Settings menu's Debug section takes you
 ## there from a shift or from the staff room, and leaving takes you back where you came
 ## from. Every model under assets/ stands in it, and looking at an asset shows its asset
-## name; a character goes through its animations, the sound buttons play their sounds,
-## the cab's doors work and the menu's Walk speed slider makes you walk faster.
+## name; a character goes through its animations, the sound buttons play their sounds
+## and the music box's tracks while the sample cabs stay quiet, the cab's doors work and
+## the menu's Walk speed slider makes you walk faster.
 ##
 ## Run: tests/run.sh asset_room_test
 
@@ -79,11 +80,16 @@ func _test_character() -> void:
 
 
 func _test_sounds() -> void:
-	for sound in ["ding", "chime going up", "chime going down"]:
+	var sounds: Array[String] = ["ding", "chime going up", "chime going down"]
+	for track in MusicBox.TRACKS:
+		sounds.append("music: %s" % track.name)
+	for sound in sounds:
 		var button := _room.asset(sound)
 		var before := _room.played.size()
 		await _press_looked_at(button)
 		_check(_room.played.size() == before + 1 and _room.played.back() == sound, "the %s button plays the %s" % [sound, sound])
+	var boxes := _room.find_children("MusicBox", "", true, false)
+	_check(not boxes.is_empty() and boxes.all(func(box: MusicBox) -> bool: return not box.is_playing()), "and the sample cabs' music boxes stay quiet")
 
 
 func _test_cab() -> void:
