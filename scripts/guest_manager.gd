@@ -2,7 +2,8 @@ class_name GuestManager
 extends Node3D
 ## Spawns guests on random floors, lights the call panel, and walks guests in and out
 ## of the cab whenever its doors stand open on their floor. Guests who wait too long give up.
-## Now and then a riding guest strikes up a chat and waits a moment for your [method reply].
+## Now and then a guest you ask for their floor strikes up a chat first and waits a moment
+## for your [method reply]; while they do, every guest's patience waits too.
 ## When guests turn up is up to the [Shift]. Some guests speak Spanish: click them and they
 ## answer in a speech bubble, as much of it as your lessons let you catch. Clicking again
 ## asks "Sorry, again?", which costs them patience.
@@ -12,7 +13,7 @@ signal delivered(guest: Guest)
 signal gave_up(guest: Guest)
 signal chatting(guest: Guest) ## a guest starts a chat and waits for your reply
 signal replied(guest: Guest)
-signal reply_closed ## the reply choices can go: answered, no answer in time, or the guest left
+signal reply_closed ## the chat is over: answered, blurted out, or the guest left
 
 const MAX_WAITING := 4
 ## Where guests wait in each hallway, relative to the floor (x, 0, z): in view of the open doors.
@@ -26,9 +27,10 @@ const CAB_SLOTS: Array[Vector3] = [
 const LANDING_Z := 1.8 ## just in front of the landing opening
 const CAB_DOOR_Z := 0.5 ## just inside the cab doors
 const HALL_END_Z := 4.4 ## where guests come from and go to
-const REPLY_TIME := 10.0 ## seconds a guest waits for your reply; no reply counts as neutral
-const CHAT_DELAY_MIN := 3.0 ## seconds after they start boarding before a chatty guest speaks up
-const CHAT_DELAY_MAX := 6.0
+const REPLY_TIME := 6.0 ## seconds a guest waits for your reply, after which you blurt one out
+## How likely you blurt out each kind of reply when time runs out, by [enum Guest.Reply]:
+## a little worse than picking blind.
+const BLURT_ODDS: Array[float] = [0.3, 0.3, 0.4]
 const AGAIN_COST := 5.0 ## seconds of patience it costs a guest to say it again
 
 ## Multiplies every guest's patience, both waiting and riding.
@@ -37,8 +39,8 @@ const AGAIN_COST := 5.0 ## seconds of patience it costs a guest to say it again
 @export var ride_patience_scale := 1.0
 ## How many guests fit in the cab. A bigger cab raises it, up to [constant CAB_SLOTS].
 @export var capacity := 3
-## Share of guests who strike up a chat during the ride. Off for now: answering felt clunky.
-@export var chat_chance := 0.0
+## Share of guests who strike up a chat when you first ask their floor.
+@export var chat_chance := 0.2
 ## Share of guests who speak Spanish. Only for floors [constant Spanish.LINES] has lines for.
 @export var spanish_share := 0.0
 ## Spanish lessons taken: how much of a Spanish guest you catch.
@@ -46,7 +48,8 @@ const AGAIN_COST := 5.0 ## seconds of patience it costs a guest to say it again
 
 var elevator: Elevator
 var rng := RandomNumberGenerator.new()
-## The guest who started a chat and waits for your reply, or null.
+## The guest who started a chat and waits for your reply, or null. Nobody's patience runs
+## out meanwhile.
 var talking_to: Guest
 
 var _guests: Array[Guest] = []
@@ -54,24 +57,14 @@ var _reply_left := 0.0
 
 
 func _process(delta: float) -> void:
-	for guest in _guests.duplicate():
-		if _is_calling(guest):
-			guest.waited += delta
-			if guest.waited >= guest.patience:
-				_give_up(guest)
-		elif _is_aboard(guest) and not guest.fed_up:
-			guest.rode += delta
-			if guest.rode >= guest.ride_patience:
-				guest.fed_up = true # they get out at the next open doors
-				gave_up.emit(guest)
-			elif _wants_to_chat(guest):
-				_start_chat(guest)
+	if talking_to == null: # while you talk, everyone's patience waits
+		_lose_patience(delta)
 	_update_calls()
 
 	if talking_to:
 		_reply_left -= delta
 		if _reply_left <= 0.0:
-			_close_talk() # no answer: neutral
+			_blurt()
 
 	if elevator.is_open_at_rest():
 		_unload_and_load(elevator.current_floor)
@@ -88,16 +81,24 @@ func clear() -> void:
 	_update_calls()
 
 
-## Answers the guest who is waiting for a reply. Does nothing when nobody is.
-func reply(choice: Guest.Reply) -> void:
-	if talking_to == null:
+## Says the reply at [param i] of [member Guest.offers] to the guest who is waiting for
+## one; they react and name their floor. Does nothing when nobody is waiting.
+func reply(i: int) -> void:
+	if talking_to == null or i < 0 or i >= talking_to.offers.size():
 		return
 	var guest := talking_to
-	guest.reply = choice
+	var offer: Dictionary = guest.offers[i]
+	guest.reply = offer.reply
 	guest.answered = true
-	guest.say(Guest.REACTIONS[choice].pick_random())
-	replied.emit(guest)
 	_close_talk()
+	_tell_floor(guest, offer.reply)
+	replied.emit(guest)
+
+
+## Which of [param offers] you blurt out when time runs out, by [constant BLURT_ODDS].
+static func blurt(offers: Array[Dictionary], r: RandomNumberGenerator) -> int:
+	var odds := PackedFloat32Array(offers.map(func(o: Dictionary) -> float: return BLURT_ODDS[o.reply]))
+	return r.rand_weighted(odds)
 
 
 ## Spawns a guest going to a random other floor, on floor [param home] or, when that is -1,
@@ -130,8 +131,7 @@ func spawn_guest(home: int, destination: int) -> Guest:
 		guest.spanish_line = Spanish.LINES[destination][rng.randi_range(0, 1)]
 		guest.display_name = "Spanish guest (click to talk)"
 	if rng.randf() < chat_chance:
-		guest.chat = Guest.CHATS.pick_random()
-		guest.chat_at = rng.randf_range(CHAT_DELAY_MIN, CHAT_DELAY_MAX)
+		guest.chat = (Spanish.CHATS if guest.language == "es" else Guest.CHATS).pick_random()
 		guest.reply_order.shuffle()
 	var temperament: Dictionary = Guest.TEMPERAMENTS[rng.randi_range(0, Guest.TEMPERAMENTS.size() - 1)]
 	guest.temperament = temperament.name
@@ -160,10 +160,16 @@ func _pick_model() -> String:
 	return models[rng.randi_range(0, models.size() - 1)]
 
 
-## A Spanish guest answers in a speech bubble: what you catch of their line, now and then an
-## English clue word, and maybe a gesture. Asking again costs them patience, and a helpful
-## guest then shows it on their fingers.
+## A chatty guest you ask for the first time strikes up their chat. Otherwise a Spanish
+## guest answers in a speech bubble (an English one names their floor themselves). Asking a
+## Spanish guest again costs them patience.
 func _on_talked_to(guest: Guest) -> void:
+	if guest.has_chat_to_start():
+		if talking_to == null:
+			_start_chat(guest)
+		else:
+			_tell_floor(guest) # one chat at a time: they keep theirs for later
+		return
 	if guest.language != "es":
 		return
 	var again := guest.asked > 1
@@ -173,8 +179,26 @@ func _on_talked_to(guest: Guest) -> void:
 			guest.waited += AGAIN_COST
 		elif _is_aboard(guest):
 			guest.rode += AGAIN_COST
+	_tell_floor(guest, -1, again)
+
+
+## [param guest] names their floor, after their reaction to your reply when [param reaction]
+## is one of [enum Guest.Reply]. A Spanish guest answers with what you catch of their line,
+## now and then an English clue word, and maybe a gesture; asked [param again], a helpful
+## guest shows it on their fingers.
+func _tell_floor(guest: Guest, reaction := -1, again := false) -> void:
+	if guest.language != "es":
+		var text := guest.line
+		if reaction >= 0:
+			text = "%s %s" % [Guest.REACTIONS[reaction].pick_random(), text]
+		guest.say(text)
+		return
+	var line := guest.spanish_line
+	if reaction >= 0:
+		var said_back: Array = Spanish.REACTIONS[reaction][rng.randi_range(0, Spanish.REACTIONS[reaction].size() - 1)]
+		line = [said_back[0] + " " + line[0], said_back[1] + " " + line[1]]
 	var help: Dictionary = Spanish.HELPFULNESS[guest.helpfulness]
-	var heard := Spanish.hear(guest.spanish_line, spanish_lessons, rng)
+	var heard := Spanish.hear(line, spanish_lessons, rng)
 	var text: String = heard.heard
 	if rng.randf() < help.clue:
 		text += "  %s %s" % [Spanish.MISS, Spanish.CLUES[guest.destination].pick_random()]
@@ -198,6 +222,19 @@ func _on_talked_to(guest: Guest) -> void:
 func _on_waiting(guest: Guest) -> void:
 	guest.state = Guest.State.WAITING
 	guest.face(Vector3(0, guest.global_position.y, 0))
+
+
+func _lose_patience(delta: float) -> void:
+	for guest in _guests.duplicate():
+		if _is_calling(guest):
+			guest.waited += delta
+			if guest.waited >= guest.patience:
+				_give_up(guest)
+		elif _is_aboard(guest) and not guest.fed_up:
+			guest.rode += delta
+			if guest.rode >= guest.ride_patience:
+				guest.fed_up = true # they get out at the next open doors
+				gave_up.emit(guest)
 
 
 func _give_up(guest: Guest) -> void:
@@ -271,16 +308,39 @@ func _remove(guest: Guest) -> void:
 	guest.queue_free()
 
 
-func _wants_to_chat(guest: Guest) -> bool:
-	return talking_to == null and guest.state == Guest.State.RIDING and not guest.chat.is_empty() \
-		and not guest.chatted and guest.rode >= guest.chat_at
-
-
+## [param guest] says their chat line, as much of it as you catch, and waits for your reply.
 func _start_chat(guest: Guest) -> void:
 	talking_to = guest
 	guest.chatted = true
+	guest.offers = _offers_for(guest)
 	_reply_left = REPLY_TIME
+	if guest.language == "es":
+		var heard := Spanish.hear(guest.chat.line, spanish_lessons, rng)
+		guest.say(heard.heard, heard.understood)
+	else:
+		guest.say(guest.chat.line)
 	chatting.emit(guest)
+
+
+## The replies you can give [param guest], in their shuffled order. In Spanish you can say
+## only as many as your lessons allow, plus a nod along.
+func _offers_for(guest: Guest) -> Array[Dictionary]:
+	var count := Guest.Reply.size()
+	if guest.language == "es":
+		count = Spanish.replies_you_can_say(spanish_lessons)
+	var offers: Array[Dictionary] = []
+	for r in guest.reply_order.slice(0, count):
+		offers.append({"reply": r, "text": guest.reply_line(r)})
+	if count < Guest.Reply.size():
+		offers.insert(rng.randi_range(0, offers.size()), {"reply": Guest.Reply.NEUTRAL, "text": Spanish.SI_SI})
+	return offers
+
+
+## Time's up: you blurt out one of the replies, a little more often a bad one.
+func _blurt() -> void:
+	var i := blurt(talking_to.offers, rng)
+	said.emit('You: "%s"' % talking_to.offers[i].text)
+	reply(i)
 
 
 func _close_talk() -> void:
@@ -288,7 +348,7 @@ func _close_talk() -> void:
 	reply_closed.emit()
 
 
-## Ends the chat when [param guest] leaves. An unanswered chat counts as neutral.
+## Ends the chat when [param guest] leaves before replying. It counts as neutral.
 func _forget_talk(guest: Guest) -> void:
 	if talking_to == guest:
 		_close_talk()

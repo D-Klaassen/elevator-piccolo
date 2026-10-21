@@ -3,6 +3,7 @@ extends CharacterBody3D
 ## First-person player: WASD or the left stick to walk, the mouse or the right stick to look,
 ## click (or A, or E) to press (or talk to) what you look at. Esc or Start opens the pause
 ## menu ([SettingsMenu]), which frees the mouse. The actions are set up in [Controls].
+## In a chat ([method focus_on]) you stand still and the view turns to the guest.
 
 signal looking_at_changed(text: String)
 
@@ -10,6 +11,7 @@ const SPEED := 2.5
 const MOUSE_SENSITIVITY := 0.002 ## radians per pixel
 const STICK_LOOK_SPEED := 2.5 ## radians per second with the right stick all the way over
 const REACH := 2.0
+const FOCUS_SPEED := 10.0 ## how quickly the view turns to a guest you talk to; ~0.3 s
 ## The metadata the Asset room names a wall or a door panel with, for [method name_of].
 const NAME_META := &"display_name"
 
@@ -24,6 +26,8 @@ var _camera: Camera3D
 var _ray: RayCast3D
 var _looking_at: Object
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
+## The guest you're talking to, or null: you can't walk, look away or press anything.
+var _focus: Guest
 
 
 func _ready() -> void:
@@ -50,7 +54,18 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## Holds still and turns the view to [param guest]'s face until [method release].
+func focus_on(guest: Guest) -> void:
+	_focus = guest
+
+
+func release() -> void:
+	_focus = null
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if is_instance_valid(_focus):
+		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_turn(event.relative * MOUSE_SENSITIVITY * look_sensitivity)
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -64,6 +79,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _press_looked_at() -> void:
 	if _looking_at and _looking_at.has_method("press"):
+		# Handled, so the press that starts a chat doesn't also say a reply.
+		get_viewport().set_input_as_handled()
 		_looking_at.press()
 
 
@@ -78,18 +95,30 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
 
-	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var input := Vector2.ZERO if is_instance_valid(_focus) else Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
 	velocity.x = direction.x * speed
 	velocity.z = direction.z * speed
 	move_and_slide()
 
+	if is_instance_valid(_focus):
+		_turn_to(_focus.mouth(), 1.0 - exp(-FOCUS_SPEED * delta))
+		_update_looking_at()
+		return
 	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
 	if look != Vector2.ZERO:
 		# Squared, so small tilts aim finely and a full tilt still turns quickly.
 		_turn(look * look.length() * STICK_LOOK_SPEED * look_sensitivity * delta)
 
 	_update_looking_at()
+
+
+## Turns the view [param weight] of the way (0 to 1) towards looking at [param point].
+func _turn_to(point: Vector3, weight: float) -> void:
+	var to := point - _camera.global_position
+	rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), weight)
+	var pitch := clampf(atan2(to.y, Vector2(to.x, to.z).length()), -1.4, 1.4)
+	_camera.rotation.x = lerp_angle(_camera.rotation.x, pitch, weight)
 
 
 func _update_looking_at() -> void:

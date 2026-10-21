@@ -84,6 +84,7 @@ func _test_bellevue() -> void:
 	await _wait_until(func() -> bool: return current_scene != null and current_scene.get_instance_id() != old_id and current_scene.is_node_ready())
 	_load_scene(current_scene)
 	_shift.spawning = false
+	_guests.chat_chance = 0.0 # chats have their own test
 	_check(_guests.spanish_share == Hotels.at(1).spanish and _guests.spanish_lessons == 0, "at Pension Bellevue guests speak Spanish, and you have no lessons yet")
 	_check(_all_text(_scene).contains("Floor 4 · Pool"), "the hallway signs say what's on each floor")
 
