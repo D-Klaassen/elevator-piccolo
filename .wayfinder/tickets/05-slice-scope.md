@@ -22,3 +22,5 @@ Note: the hotel ladder now starts at a 3-floor rustic cabin (English only), with
 - **Dialogue:** English guests greet you and you pick 2–3 replies (friendly / neutral / rude), which affects the tip. Spanish guests work as in the language-guessing test.
 - **Tech:** save between shifts, basic settings (volume, mouse sensitivity), controller support for Steam Deck. No Steam integration yet; builds for Windows, macOS and Steam Deck.
 - **Success:** 3–5 friends play without explanation, get the loop within 5 minutes and want "one more shift"; 60 fps on Steam Deck.
+
+**Update 2026-10-21:** the demo targets Windows and macOS for now, 60 fps on a typical Mac or Windows PC. The Steam Deck comes later: there's no Deck to test on. Controller support stays.

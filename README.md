@@ -10,9 +10,9 @@ A Steam game about an elevator bellhop (piccolo): greet guests, figure out their
 2. Open Godot, choose **Import**, and select `project.godot` in this folder. Or from a terminal: `godot --path . --editor`.
 3. Press **F5** (Run Project). To play without the editor: `godot --path .`
 
-Controls: **WASD** to walk, **mouse** to look, **left click** (or **E**) to press the button or talk to the guest you're looking at, **Esc** to pause. With a controller (Xbox layout, as on the Steam Deck): **left stick** to walk, **right stick** to look, **A** to press or talk, **Start** to pause. In the menus the **D-pad** or left stick moves between buttons and sliders, **A** presses and **B** goes back. The help line in the corner switches to the controller while one is connected. The actions are set up in `scripts/controls.gd`.
+Controls: **WASD** to walk, **mouse** to look, **left click** (or **E**) to press the button or talk to the guest you're looking at, **Esc** to pause. With a controller (Xbox layout): **left stick** to walk, **right stick** to look, **A** to press or talk, **Start** to pause. In the menus the **D-pad** or left stick moves between buttons and sliders, **A** presses and **B** goes back. The help line in the corner switches to the controller while one is connected. The actions are set up in `scripts/controls.gd`.
 
-Pausing opens the **settings**: a volume slider (0 mutes the game) and a look sensitivity slider (×0.25 to ×3, for both the mouse and the right stick). They take effect and are saved straight away, in `user://settings.cfg`, apart from the career. **Resume**, or Esc, Start or B, goes back to the shift; **Quit the game** quits without saving the shift in progress. The staff room has a **Settings** button for the same panel. The settings live in `scripts/settings.gd`, the panel in `scripts/settings_menu.gd`.
+Pausing opens the **settings**: a volume slider (0 mutes the game), a look sensitivity slider (×0.25 to ×3, for both the mouse and the right stick) and a **Smooth edges** switch, on by default, which turns 2× anti-aliasing (MSAA) on the 3D view on or off; turn it off on a computer that can't keep up. They take effect and are saved straight away, in `user://settings.cfg`, apart from the career. **Resume**, or Esc, Start or B, goes back to the shift; **Quit the game** quits without saving the shift in progress. The staff room has a **Settings** button for the same panel. The settings live in `scripts/settings.gd`, the panel in `scripts/settings_menu.gd`.
 
 ### Debug options and the Asset room
 
@@ -46,7 +46,7 @@ Pension Bellevue is as far as the demo goes. Its staff room offers the **Grand H
 
 ## Tests
 
-Headless scripted tests drive the cab through its own buttons. `elevator_test` covers the lit buttons and the floor queue; `landing_door_test` checks the landing doors follow the cab and block the shaft, and that the call button gets you back in when you've shut yourself out; `guest_loop_test` serves three guests in a row; `chat_test` covers chats, the shuffled reply choices and how each reply changes the tip; `shift_test` covers the clock, patience, pay and the end-of-shift report, then plays a whole shift with an autopilot; `career_test` carries the balance and the ratings through the save over four shifts; `staff_room_test` buys upgrades and checks what each one changes in the next shift; `hotel_test` moves up to Pension Bellevue and plays a ride there; `spanish_test` covers what you catch of Spanish per lesson, the speech bubble and its language badge, asking again and buying lessons; `end_screen_test` applies to the Grand Hotel from Pension Bellevue and checks the end screen; `guest_model_test` covers the guests' looks and animations; `gesture_test` checks every character's gestures and their poses, the props in their hands, and that a Spanish guest acts out their hint; `decor_test` checks every hallway is furnished, with nothing in the guests' way, and the music box at each level; `interior_test` checks each hotel's patterned walls and floors, that the trim is flat against the walls with no collision, the floor signs on their plates, and the cab's panelling, light and handrail, clear of the doors; `settings_test` pauses with Esc, moves the sliders and checks they are saved and used in the next shift; `controller_test` looks, walks, presses a button and works the pause menu with a simulated controller; `debug_test` checks what the debug options change, that the Debug section is only in debug builds, and that End shift now scores the shift as it stands; `asset_room_test` goes into the Asset room from a shift and from the staff room and back, finds every model under `assets/` in it by its name, plays a character's animations, the sounds and a sample corner's doors, and walks faster with the Walk speed slider. The tests save the career and the settings to temporary files, never to your own. Run them all with the runner, which exits with 1 if any test fails:
+Headless scripted tests drive the cab through its own buttons. `elevator_test` covers the lit buttons and the floor queue; `landing_door_test` checks the landing doors follow the cab and block the shaft, and that the call button gets you back in when you've shut yourself out; `guest_loop_test` serves three guests in a row; `chat_test` covers chats, the shuffled reply choices and how each reply changes the tip; `shift_test` covers the clock, patience, pay and the end-of-shift report, then plays a whole shift with an autopilot; `career_test` carries the balance and the ratings through the save over four shifts; `staff_room_test` buys upgrades and checks what each one changes in the next shift; `hotel_test` moves up to Pension Bellevue and plays a ride there; `spanish_test` covers what you catch of Spanish per lesson, the speech bubble and its language badge, asking again and buying lessons; `end_screen_test` applies to the Grand Hotel from Pension Bellevue and checks the end screen; `guest_model_test` covers the guests' looks and animations; `gesture_test` checks every character's gestures and their poses, the props in their hands, and that a Spanish guest acts out their hint; `decor_test` checks every hallway is furnished, with nothing in the guests' way, and the music box at each level; `interior_test` checks each hotel's patterned walls and floors, that the trim is flat against the walls with no collision, the floor signs on their plates, and the cab's panelling, light and handrail, clear of the doors; `settings_test` pauses with Esc, moves the sliders, switches Smooth edges off and checks they are saved and used in the next shift; `controller_test` looks, walks, presses a button and works the pause menu with a simulated controller; `debug_test` checks what the debug options change, that the Debug section is only in debug builds, and that End shift now scores the shift as it stands; `asset_room_test` goes into the Asset room from a shift and from the staff room and back, finds every model under `assets/` in it by its name, plays a character's animations, the sounds and a sample corner's doors, and walks faster with the Walk speed slider. The tests save the career and the settings to temporary files, never to your own. Run them all with the runner, which exits with 1 if any test fails:
 
 ```bash
 tests/run.sh
@@ -78,7 +78,7 @@ The skill is `expert` (reacts at once and always knows a Spanish guest's floor) 
 |---|---|---|
 | Windows | `build/windows/ElevatorPiccolo.exe` | x86_64, one file with the game packed in |
 | macOS | `build/macos/ElevatorPiccolo.zip` | the `.app`, universal (Intel and Apple Silicon), signed ad hoc and not notarized: on another Mac, right-click > Open the first time |
-| Linux | `build/linux/ElevatorPiccolo.x86_64` | x86_64, one file; this is the build for the Steam Deck |
+| Linux | `build/linux/ElevatorPiccolo.x86_64` | x86_64, one file; for the Steam Deck later, so only built when named |
 
 The tests are left out of every build. Building needs Godot's export templates for the editor's version, once per machine: in the editor, **Editor > Manage Export Templates > Download and Install** (about 1.3 GB). Then:
 
@@ -89,23 +89,23 @@ tools/build.sh
 Or build one or more by preset name:
 
 ```bash
-tools/build.sh Linux
+tools/build.sh macOS
 ```
 
-To try the Linux build on a Steam Deck, copy the file over (for example to `~/Games/`), mark it executable, and add it in Desktop Mode with **Add a Non-Steam Game to My Library** to play it in Game Mode with the controller. Code signing for macOS (an Apple Developer account) and Steam builds come later.
+Code signing for macOS (an Apple Developer account) and Steam builds come later.
 
 ## Performance
 
-The spec asks for 60 fps on the Steam Deck. Start the game with `--benchmark` to measure it: it loads Pension Bellevue (the biggest hotel) with a temporary career, so nothing of yours is touched, fills it with guests, gets them all talking, and measures four views for a few seconds each with vsync off. It prints frames per second, CPU and GPU time per frame and draw calls, then quits. On this machine:
+The spec asks for 60 fps on a typical Mac or Windows PC; the Steam Deck comes later. Start the game with `--benchmark` to measure it: it loads Pension Bellevue (the biggest hotel) with a temporary career and settings, so nothing of yours is touched, fills it with guests, gets them all talking, and measures four views for a few seconds each with vsync off. It prints frames per second, CPU and GPU time per frame and draw calls, then quits. On this machine, at 1920×1080:
 
 ```bash
 tools/benchmark.sh
 ```
 
-On the Deck, in Desktop Mode, from a terminal in the folder with the Linux build:
+On Windows, from a terminal in the folder with the build:
 
 ```bash
-./ElevatorPiccolo.x86_64 -- --benchmark
+ElevatorPiccolo.exe -- --benchmark
 ```
 
-A frame at 60 fps has 16.7 ms. On an Apple M4 Pro the busiest view takes about 1 ms of GPU time and 0.25 ms of CPU time to draw, with 100–170 draw calls, and the game's scripts about 0.2 ms; the Deck's GPU is roughly 5–6 times slower, which leaves plenty of room. Metal reports no GPU time, so `tools/benchmark.sh` uses Vulkan. The benchmark lives in `scripts/benchmark.gd`. For the real check, play a shift in Game Mode with the Deck's performance overlay on.
+A frame at 60 fps has 16.7 ms. On an Apple M4 Pro at 1920×1080 the busiest view takes about 1.1 ms of GPU time with smooth edges on (about 0.85 ms with them off) and 0.2 ms of CPU time to draw, with 100–190 draw calls, which leaves plenty of room for slower computers; on one that still struggles, switching Smooth edges off saves about a fifth of the GPU time. The fps column stays around 150 on that Mac whatever the load, and now and then a view drops to 60–100 fps while its GPU time stays the same: that is the machine, not the game, so judge by the GPU and CPU time. Metal reports no GPU time, so `tools/benchmark.sh` uses Vulkan. The benchmark lives in `scripts/benchmark.gd`.

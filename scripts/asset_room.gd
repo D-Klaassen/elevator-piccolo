@@ -63,6 +63,7 @@ static func enter(tree: SceneTree, from_staff_room: bool) -> void:
 func _ready() -> void:
 	_settings = Settings.load_saved()
 	_settings.apply_volume()
+	_settings.apply_anti_aliasing(get_viewport())
 	Hallway.build_environment(self)
 	_left_x = 1.5
 	_right_x = 1.5

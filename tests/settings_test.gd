@@ -1,7 +1,7 @@
 extends "res://tests/scene_test.gd"
 ## Headless scripted test of the settings: Esc pauses the shift and opens them, the volume
-## and look sensitivity sliders take effect and are saved straight away, the next shift
-## picks them up, and the staff room opens them too.
+## and look sensitivity sliders and the smooth edges switch take effect and are saved
+## straight away, the next shift picks them up, and the staff room opens them too.
 ##
 ## Run: tests/run.sh settings_test
 
@@ -16,7 +16,7 @@ func _run() -> void:
 
 func _test_saving() -> void:
 	var s := Settings.load_saved()
-	_check(s.volume == 0.8 and s.look_sensitivity == 1.0, "without a save the settings are the defaults")
+	_check(s.volume == 0.8 and s.look_sensitivity == 1.0 and s.anti_aliasing, "without a save the settings are the defaults, smooth edges on")
 	s.volume = 1.5
 	s.look_sensitivity = 10.0
 	_check(s.volume == 1.0 and s.look_sensitivity == Settings.MAX_SENSITIVITY, "they stay within their range")
@@ -44,8 +44,12 @@ func _test_pause_menu() -> void:
 	_slider("LookSensitivity").value = 2.0
 	_check(_player().look_sensitivity == 2.0, "the sensitivity slider sets the look sensitivity")
 	_check(_text(menu).contains("Look sensitivity: ×2.00"), "and shows it")
+	var smooth := menu.find_child("AntiAliasing", true, false) as CheckButton
+	_check(smooth.button_pressed and root.msaa_3d == Viewport.MSAA_2X, "smooth edges are on: 2x MSAA")
+	smooth.button_pressed = false
+	_check(root.msaa_3d == Viewport.MSAA_DISABLED, "switching smooth edges off turns MSAA off")
 	var saved := Settings.load_saved()
-	_check(is_equal_approx(saved.volume, 0.4) and saved.look_sensitivity == 2.0, "both are saved straight away")
+	_check(is_equal_approx(saved.volume, 0.4) and saved.look_sensitivity == 2.0 and not saved.anti_aliasing, "all three are saved straight away")
 
 	await _escape()
 	_check(not menu.visible and not paused, "Esc again closes the menu and the shift goes on")
@@ -56,10 +60,12 @@ func _test_pause_menu() -> void:
 
 func _test_next_shift() -> void:
 	AudioServer.set_bus_volume_db(0, 0.0)
+	root.msaa_3d = Viewport.MSAA_2X
 	_load_scene(await _reload())
 	_shift.spawning = false
 	_check(_player().look_sensitivity == 2.0, "the next shift keeps the look sensitivity")
 	_check(is_equal_approx(AudioServer.get_bus_volume_db(0), linear_to_db(0.4)), "and the volume")
+	_check(root.msaa_3d == Viewport.MSAA_DISABLED, "and smooth edges off")
 
 
 func _test_staff_room() -> void:
@@ -71,7 +77,7 @@ func _test_staff_room() -> void:
 	_check(room.visible and not _menu().visible, "Esc doesn't open the pause menu in the staff room")
 	(room.find_child("Settings", true, false) as Button).pressed.emit()
 	_check(_menu().visible and not room.visible and _text(_menu()).contains("Settings"), "its Settings button does")
-	_check(_slider("LookSensitivity").value == 2.0, "showing the saved settings")
+	_check(_slider("LookSensitivity").value == 2.0 and not (_menu().find_child("AntiAliasing", true, false) as CheckButton).button_pressed, "showing the saved settings")
 	(_menu().find_child("Close", true, false) as Button).pressed.emit()
 	_check(room.visible and not _menu().visible and paused, "Back returns to the staff room, still between shifts")
 

@@ -8,7 +8,7 @@ You are the elevator attendant (piccolo) in first person: greet guests, work out
 
 ## Engine
 
-**Godot 4 with GDScript.** Builds for Windows, macOS and Steam Deck (Linux). Steam integration later via the GodotSteam add-on. Fallback: Unity 6. → [engine choice](../.wayfinder/tickets/01-engine-choice.md)
+**Godot 4 with GDScript.** Builds for Windows and macOS; Steam Deck (Linux) later. Steam integration later via the GodotSteam add-on. Fallback: Unity 6. → [engine choice](../.wayfinder/tickets/01-engine-choice.md)
 
 ## Core loop
 
@@ -52,7 +52,7 @@ You are the elevator attendant (piccolo) in first person: greet guests, work out
 
 ## Done when
 
-3–5 friends play without explanation, get the loop within 5 minutes and want "one more shift", and it runs at 60 fps on Steam Deck.
+3–5 friends play without explanation, get the loop within 5 minutes and want "one more shift", and it runs at 60 fps on a typical Mac or Windows PC.
 
 ## Not in this demo
 

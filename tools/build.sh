@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# Exports the game for Windows, macOS and Linux (Steam Deck) into build/, using the presets
-# in export_presets.cfg. Needs Godot's export templates for the same version as the
-# editor: in the editor, Editor > Manage Export Templates > Download and Install.
+# Exports the game for Windows and macOS into build/, using the presets in
+# export_presets.cfg. The Linux preset (for the Steam Deck, later) builds when named.
+# Needs Godot's export templates for the same version as the editor: in the editor,
+# Editor > Manage Export Templates > Download and Install.
 #
-# Usage: tools/build.sh [preset ...]   With no names it builds Windows, macOS and Linux.
+# Usage: tools/build.sh [preset ...]   With no names it builds Windows and macOS.
 # Set GODOT to use a Godot binary other than the one on PATH.
 
 set -u
 cd "$(dirname "$0")/.."
 godot="${GODOT:-godot}"
 
-[ $# -eq 0 ] && set -- Windows macOS Linux
+[ $# -eq 0 ] && set -- Windows macOS
 
 "$godot" --headless --path . --import > /dev/null 2>&1
 

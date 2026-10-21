@@ -1,7 +1,7 @@
 class_name SettingsMenu
 extends PanelContainer
-## The settings panel: sliders for the volume and the look sensitivity, saved as soon as
-## they move. During a shift Esc (or Start) opens it as the pause menu, and Esc, Start, B or
+## The settings panel: sliders for the volume and the look sensitivity and a switch for
+## smooth edges, saved as soon as they change. During a shift Esc (or Start) opens it as the pause menu, and Esc, Start, B or
 ## Resume closes it again; the staff room opens it with its Settings button, and so does
 ## Esc in the Asset room. In debug builds it has a Debug section with the [DebugOptions],
 ## End shift now and the way into (or out of) the Asset room; in the Asset room it also has
@@ -28,6 +28,7 @@ var _volume: HSlider
 var _volume_label: Label
 var _sensitivity: HSlider
 var _sensitivity_label: Label
+var _anti_aliasing: CheckButton
 var _close: Button
 var _speed: Button
 var _end_shift: Button
@@ -69,6 +70,12 @@ func _ready() -> void:
 	_sensitivity = _slider("LookSensitivity", Settings.MIN_SENSITIVITY, Settings.MAX_SENSITIVITY, 0.05)
 	_sensitivity.value_changed.connect(_on_sensitivity_changed)
 	box.add_child(_sensitivity)
+
+	_anti_aliasing = CheckButton.new()
+	_anti_aliasing.name = "AntiAliasing"
+	_anti_aliasing.text = "Smooth edges (turn off if the game runs slowly)"
+	_anti_aliasing.toggled.connect(_on_anti_aliasing_toggled)
+	box.add_child(_anti_aliasing)
 
 	_close = Button.new()
 	_close.name = "Close"
@@ -184,6 +191,7 @@ func open(where: Where) -> void:
 	_close.text = "Resume" if where == Where.SHIFT else "Back"
 	_volume.set_value_no_signal(settings.volume)
 	_sensitivity.set_value_no_signal(settings.look_sensitivity)
+	_anti_aliasing.set_pressed_no_signal(settings.anti_aliasing)
 	_update_labels()
 	if _end_shift:
 		_end_shift.visible = where == Where.SHIFT
@@ -210,6 +218,12 @@ func _on_volume_changed(value: float) -> void:
 
 func _on_sensitivity_changed(value: float) -> void:
 	settings.look_sensitivity = value
+	_saved()
+
+
+func _on_anti_aliasing_toggled(on: bool) -> void:
+	settings.anti_aliasing = on
+	settings.apply_anti_aliasing(get_viewport())
 	_saved()
 
 
