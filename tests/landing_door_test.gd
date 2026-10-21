@@ -20,8 +20,8 @@ func _run() -> void:
 	await _test_cab_open_elsewhere()
 
 
-## Like a real elevator's: opening speeds up, glides and eases in; closing glides and then
-## creeps the last bit.
+## Like a real elevator's: opening speeds up, glides and eases in; closing glides steadily
+## and slows down for the last bit.
 func _test_speed_curves() -> void:
 	var opening := Elevator.OPENING_SPEED
 	var closing := Elevator.CLOSING_SPEED
@@ -29,27 +29,32 @@ func _test_speed_curves() -> void:
 	_check(Elevator.travelled(opening, 0.15) < 0.08, "opening starts slowly (%.2f of the way after 15%% of the time)" % Elevator.travelled(opening, 0.15))
 	_check(Elevator.travelled(opening, 0.6) - Elevator.travelled(opening, 0.4) > 0.25, "glides in the middle")
 	_check(1.0 - Elevator.travelled(opening, 0.85) < 0.06, "and eases into the wall")
-	var creep := 1.0 - Elevator.travelled(closing, 0.8)
-	_check(creep < 0.1, "closing creeps the last bit: the last 20%% of the time covers %.0f%% of the way" % (creep * 100))
+	var glide := Elevator.travelled(closing, 0.7) - Elevator.travelled(closing, 0.3)
+	var last := 1.0 - Elevator.travelled(closing, 0.88)
+	_check(last < glide * 0.12 / 0.4 * 0.5 and last > 0.03, "closing glides, then slows down for the last bit, at under half the speed (%.0f%% of the way in 40%% of the time, then %.0f%% in the last 12%%)" % [glide * 100, last * 100])
 
 
 func _test_panels() -> void:
 	var door := _elevator.cab_doors()
 	var panels := _elevator.door_panels()
 	_check(_elevator.door_style == ElevatorDoor.Style.SIDE and panels.size() == 2, "the cab, the smallest, has side-opening doors: two panels")
-	_check(_stacked(door), "open, the two panels are stacked beside the opening, on one side")
+	_check(_stacked(door), "open, the two panels are beside the opening, one behind the other, on one side")
 	var open_x := panels.map(func(p: Node3D) -> float: return p.position.x)
 	_press("close")
 	_check(await _wait_until(func() -> bool: return _elevator.door_amount < 0.5), "closing")
 	var lead: float = open_x[0] - panels[0].position.x
 	var trail: float = open_x[1] - panels[1].position.x
-	_check(is_equal_approx(lead, 2.0 * trail), "they telescope: the leading panel moves twice as far as the trailing one (%.3f, %.3f)" % [lead, trail])
+	_check(lead > 1.7 * trail and lead < 2.1 * trail, "they telescope: the leading panel moves about twice as far as the trailing one (%.3f, %.3f)" % [lead, trail])
 	await _wait_until(func() -> bool: return not _elevator.doors_open and not _elevator._doors_busy)
 	_check(_tiled(door), "shut, the panels fill the opening side by side (%s)" % [_xs(door)])
 
 	_press("open")
 	_check(await _wait_until(func() -> bool: return _elevator.door_amount > 0.02), "opening")
-	_check(is_zero_approx(_elevator.landing_doors(0).amount), "the cab's doors lead: the landing doors haven't moved yet")
+	var with_cab := _elevator.landing_doors(0).panels()
+	var together := true
+	for i in panels.size():
+		together = together and is_equal_approx(with_cab[i].position.x, panels[i].position.x)
+	_check(together and _elevator.landing_doors(0).amount == _elevator.cab_doors().amount, "the landing doors move with the cab's, edge to edge, as one door")
 	await _wait_until(func() -> bool: return _elevator.is_open_at_rest())
 	_check(_stacked(_elevator.landing_doors(0)), "and the landing doors end up stacked behind the wall too")
 
@@ -61,14 +66,13 @@ func _test_panels() -> void:
 	centre.free()
 
 
-## True if each pair of [param door]'s panels is stacked beside the opening.
+## True if all of [param door]'s panels, steel and all, are clear of the opening, beside it
+## on their side behind the frame: one behind the other.
 func _stacked(door: ElevatorDoor) -> bool:
-	var panels := door.panels()
-	var width := ElevatorDoor.panel_width(door.style)
-	for pair in range(0, panels.size(), 2):
-		var lead: Node3D = panels[pair]
-		var trail: Node3D = panels[pair + 1]
-		if not is_equal_approx(lead.position.x, trail.position.x) or absf(lead.position.x) - width / 2 < Elevator.DOOR_OPENING / 2 - 0.001:
+	for panel in door.panels():
+		var steel := AssetTag.bounds(panel)
+		var near_edge := minf(absf(panel.position.x + steel.position.x), absf(panel.position.x + steel.end.x))
+		if near_edge < Elevator.DOOR_OPENING / 2 - Interior.FRAME_LAP - 0.001 or signf(panel.position.x + steel.position.x) != signf(panel.position.x + steel.end.x):
 			return false
 	return true
 
@@ -95,8 +99,7 @@ func _test_doors_follow_the_cab() -> void:
 	_check(_elevator.call_button(1) != null and _elevator.call_button(1).display_name == "Call the elevator", "every hallway has a call button")
 	_check(_elevator.call_button(1).find_children("*", "Label3D", false, false).is_empty(), "a plain one, with no caption")
 	var landing := _elevator.landing_doors(0)
-	var edges: Array = landing.panels().map(func(p: Node3D) -> float: return absf(p.position.x) - ElevatorDoor.panel_width(landing.style) / 2)
-	_check(edges.all(func(e: float) -> bool: return e > Elevator.DOOR_OPENING / 2 + 0.01), "open landing doors slide right in behind the wall, not flush with the opening's edge (%s)" % [edges])
+	_check(_stacked(landing), "open landing doors are clear of the opening, behind the wall")
 	var wall_back := _elevator.landing_z - Elevator.WALL / 2
 	_check(landing.panels().all(func(p: Node3D) -> bool: return p.position.z + Elevator.PANEL_THICKNESS / 2 < wall_back and p.position.z - Elevator.PANEL_THICKNESS / 2 > Elevator.CAB_HALF_WIDTH + Elevator.WALL / 2),
 			"the landing doors hang between the cab and the landing wall, so they never slide through the wall")

@@ -27,7 +27,7 @@ const HEIGHT := 4.5 ## of the room
 const REFERENCE_HEIGHT := 1.8
 const SIGN_SIZE := 32 ## font size of the asset names at the assets' feet
 ## Trim that is the same in every hotel, so it is named without the hotel's name.
-const SAME_IN_EVERY_HOTEL: Array[String] = ["threshold"]
+const SAME_IN_EVERY_HOTEL: Array[String] = ["threshold", "landing door header", "landing door jamb"]
 ## What a floor display shows as you press it: [floor, direction].
 const DISPLAY_STATES: Array[Vector2i] = [
 	Vector2i(0, 0), Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 0), Vector2i(2, -1), Vector2i(1, -1),
@@ -229,7 +229,8 @@ func _elevator_door(asset_name: String, style: ElevatorDoor.Style) -> Node3D:
 	Greybox.box(holder, Vector3(2 * opening, lintel, Elevator.WALL), Vector3(0, Elevator.DOOR_HEIGHT + lintel / 2, 0), Color.WHITE, true, wall)
 	Interior.landing_frame(holder, 0.0, 0.0, Interior.flat(Interior.CAB_WALL[4]))
 	Interior.landing_sill(holder, 0.0, 0.0)
-	var door := ElevatorDoor.make(holder, "Doors", style, -Elevator.LANDING_LEAD_BACK, -Elevator.LANDING_TRAIL_BACK, Elevator.LANDING_TUCK)
+	Interior.landing_backing(holder, 0.0, 0.0, style, lintel - 0.002)
+	var door := ElevatorDoor.make(holder, "Doors", style, -Elevator.LANDING_LEAD_BACK, -Elevator.LANDING_TRAIL_BACK)
 	AssetTag.cover(holder, asset_name, func() -> void: _slide(door, door.amount < 0.5))
 	return holder
 

@@ -11,9 +11,10 @@ extends Node3D
 ##
 ## The doors move like a real elevator's: telescoping panels ([ElevatorDoor]) that slide to
 ## one side ([member door_style]); they speed up, glide and ease into the wall when opening,
-## and slow to a creep before they shut when closing. The cab's doors lead and pick up the
-## landing doors a moment later. The landing doors hang on the shaft side of the landing
-## wall and slide in behind it, as a real elevator's do. A chime rings on arrival: once
+## and glide steadily when closing, slowing down for the last bit. The cab's doors
+## and the landing doors move as one, edge to edge, so from inside or outside you see one
+## door. The landing doors hang on the shaft side of the landing wall and slide in behind
+## it, as a real elevator's do. A chime rings on arrival: once
 ## going up, twice going down.
 
 signal hint(text: String)
@@ -27,33 +28,36 @@ const DOOR_HEIGHT := 2.1
 const DOOR_OPENING := 1.0
 const WALL := 0.1
 const SPEED := 0.7 ## metres per second: about 5 s per floor
-const DOOR_TIME := 1.2 ## seconds the standard doors take to open
-const CLOSE_SLOWER := 1.3 ## closing takes this many times as long as opening
-const PANEL_THICKNESS := 0.04
-const SKIN := 0.04 ## the cab's inner front wall, which the open doors slide behind
+const DOOR_TIME := 2.6 ## seconds the standard doors take to open
+const CLOSE_SLOWER := 1.35 ## closing takes this many times as long as opening
+## Thin, like a real elevator's: from the frame's face to the door is only a couple of
+## centimetres.
+const PANEL_THICKNESS := 0.02
+const SKIN := 0.012 ## the cab's inner front wall, which the open doors slide behind
+const DOOR_GAP := 0.003 ## between a door panel and what it slides past
+## How far the panels' steel reaches up past the doorway, in behind the wall over it, so
+## looking up at the shut doors there's no gap over them.
+const DOOR_TOP_REACH := 0.03
 ## Where the cab's door panels are: the trailing ones just inside its front wall, the
 ## leading ones in front of them, and the inner front wall just in front of those.
-const CAB_TRAIL_Z := CAB_HALF_WIDTH - WALL / 2 - 0.005 - PANEL_THICKNESS / 2
-const CAB_LEAD_Z := CAB_TRAIL_Z - PANEL_THICKNESS - 0.005
-const CAB_SKIN_Z := CAB_LEAD_Z - PANEL_THICKNESS / 2 - 0.005 - SKIN / 2
+const CAB_TRAIL_Z := CAB_HALF_WIDTH - WALL / 2 - DOOR_GAP - PANEL_THICKNESS / 2
+const CAB_LEAD_Z := CAB_TRAIL_Z - PANEL_THICKNESS - DOOR_GAP
+const CAB_SKIN_Z := CAB_LEAD_Z - PANEL_THICKNESS / 2 - DOOR_GAP - SKIN / 2
 ## How far the landing doors hang behind the middle of the landing wall, on the shaft side:
 ## the trailing panels just behind the wall, the leading ones behind those.
-const LANDING_TRAIL_BACK := WALL / 2 + 0.005 + PANEL_THICKNESS / 2
-const LANDING_LEAD_BACK := LANDING_TRAIL_BACK + PANEL_THICKNESS + 0.005
+const LANDING_TRAIL_BACK := WALL / 2 + DOOR_GAP + PANEL_THICKNESS / 2
+const LANDING_LEAD_BACK := LANDING_TRAIL_BACK + PANEL_THICKNESS + DOOR_GAP
 ## The middle of the hallways' landing walls: far enough in front of the cab for the landing
 ## doors behind them, with a 2 cm gap to the cab.
 const LANDING_Z := CAB_HALF_WIDTH + WALL / 2 + 0.02 + LANDING_LEAD_BACK + PANEL_THICKNESS / 2
-const LANDING_TUCK := 0.03 ## metres open landing doors slide past the opening's edge, behind the wall
-## Share of the way the cab's doors go before they pick up the landing doors.
-const LANDING_LAG := 0.06
 const ARRIVAL_PAUSE := 0.6 ## seconds between the chime and the doors opening by themselves
 const DISPLAY_HEIGHT := DOOR_HEIGHT + 0.3 ## the middle of the floor displays over the doors
 ## How fast the doors move over the course of opening and of closing, as [time, speed]
 ## points with straight lines between them (both from 0 to 1, the speed relative): opening
-## speeds up, glides and eases into the wall; closing glides, slows to a creep and stops
-## when the doors meet.
+## speeds up, glides and eases into the wall; closing gets going, glides steadily and slows
+## down for the last bit, settling shut at under half the glide's speed.
 const OPENING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.25, 1), Vector2(0.6, 1), Vector2(1, 0)]
-const CLOSING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.2, 1), Vector2(0.55, 1), Vector2(0.78, 0.15), Vector2(1, 0.15)]
+const CLOSING_SPEED: Array[Vector2] = [Vector2(0, 0), Vector2(0.1, 1), Vector2(0.7, 1), Vector2(0.8, 0.4), Vector2(1, 0.4)]
 
 @export var floor_count := 3
 ## Which way the doors open, the cab's and the landings' alike. This cab, the smallest,
@@ -218,7 +222,7 @@ func _build_cab() -> void:
 	var trim := Node3D.new()
 	trim.name = "Trim"
 	_cab.add_child(trim)
-	Interior.trim_cab(trim, w, h, WALL, CAB_SKIN_Z - SKIN / 2)
+	Interior.trim_cab(trim, w, h, WALL, CAB_SKIN_Z - SKIN / 2, door_style)
 
 	var light := OmniLight3D.new()
 	light.position = Vector3(0, h - 0.3, 0)
@@ -235,9 +239,13 @@ func _build_cab() -> void:
 
 
 ## The cab's doors, between its front wall and its inner front wall: the trailing panels
-## nearest the front wall, the leading ones in front of them.
+## nearest the front wall, the leading ones in front of them. Their leading edge reaches out
+## to just short of the landing doors, so the two look like one door as they move together.
 func _build_doors() -> void:
 	_cab_doors = ElevatorDoor.make(_cab, "CabDoors", door_style, CAB_LEAD_Z, CAB_TRAIL_Z)
+	# In the grey of the doorway between the two doors, just short of the front wall's outside,
+	# inside the lining.
+	_cab_doors.bridge_to(CAB_HALF_WIDTH + WALL / 2 - 0.002, Interior.flat(Hallway.SHAFT_GREY))
 
 
 ## The cab's doors.
@@ -259,7 +267,8 @@ func _build_landings() -> void:
 		landing.position = Vector3(0, f * FLOOR_HEIGHT, 0)
 		add_child(landing)
 		_landing_doors.append(ElevatorDoor.make(landing, "LandingDoors", door_style,
-				landing_z - LANDING_LEAD_BACK, landing_z - LANDING_TRAIL_BACK, LANDING_TUCK))
+				landing_z - LANDING_LEAD_BACK, landing_z - LANDING_TRAIL_BACK))
+		Interior.landing_backing(landing, 0.0, landing_z, door_style, FLOOR_HEIGHT - DOOR_HEIGHT)
 
 		var hall_face := landing_z + WALL / 2
 		var plate_at := Vector3(DOOR_OPENING / 2 + 0.3, 1.1, hall_face + 0.006)
@@ -558,12 +567,11 @@ func _step_doors(t: float) -> void:
 
 
 ## Puts the cab's doors [param amount] of the way open, and the landing doors here with
-## them, a little behind: the cab's doors pick them up once they've gone [constant
-## LANDING_LAG] of the way.
+## them, edge to edge, so they look like one door.
 func _show_doors(amount: float) -> void:
 	door_amount = amount
 	_cab_doors.show_open(amount)
-	_landing_doors[current_floor].show_open(clampf((amount - LANDING_LAG) / (1.0 - LANDING_LAG), 0.0, 1.0))
+	_landing_doors[current_floor].show_open(amount)
 
 
 ## How far along a move with speed curve [param curve] (see [constant OPENING_SPEED]) the

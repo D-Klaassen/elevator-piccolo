@@ -80,13 +80,13 @@ static func build(parent: Node3D, hotel: Dictionary, f: int, open_right := false
 		wall.name = "%s%d" % [piece[0], f]
 	# The landing wall's shaft side, as far as the cab looks out on it, in the shaft's grey,
 	# so no wallpaper shows past the frame from inside the cab.
-	var shaft_face := SHAFT_FRONT - 0.002
+	var shaft_face := SHAFT_FRONT - 0.001 # clear of the landing doors just behind it
 	var beside_from := opening - Interior.FRAME_LAP + Interior.DOOR_FRAME
 	var beside := Elevator.CAB_HALF_WIDTH + 0.1 - beside_from
 	var above := Elevator.DOOR_HEIGHT - Interior.FRAME_LAP + Interior.DOOR_FRAME
 	for sign_x in [-1.0, 1.0]:
-		Greybox.box(parent, Vector3(beside, wall_h, 0.004), Vector3(sign_x * (beside_from + beside / 2), y + wall_h / 2, shaft_face), SHAFT_GREY, false)
-	Greybox.box(parent, Vector3(2 * beside_from, wall_h - above, 0.004), Vector3(0, y + (wall_h + above) / 2, shaft_face), SHAFT_GREY, false)
+		Greybox.box(parent, Vector3(beside, wall_h, 0.002), Vector3(sign_x * (beside_from + beside / 2), y + wall_h / 2, shaft_face), SHAFT_GREY, false)
+	Greybox.box(parent, Vector3(2 * beside_from, wall_h - above, 0.002), Vector3(0, y + (wall_h + above) / 2, shaft_face), SHAFT_GREY, false)
 
 	# Floor sign on the back wall, facing the elevator (-Z).
 	var places: Array = hotel.places
