@@ -97,7 +97,7 @@ func _test_bellevue() -> void:
 	await _wait_until(func() -> bool: return g.state == Guest.State.RIDING)
 	await _ride_to(6)
 	_check(await _wait_until(_gone(g)), "a guest rides up to floor 6")
-	_check(_shift.fares == Shift.FARE * 1.5 and _shift.tips == Shift.WAIT_TIP * 1.5, "and pays half as much again: €%.2f fare, €%.2f tip" % [_shift.fares, _shift.tips])
+	_check(_shift.fares == Shift.FARE * 2.5 and _shift.tips == Shift.WAIT_TIP * 2.5, "and pays two and a half times as much: €%.2f fare, €%.2f tip" % [_shift.fares, _shift.tips])
 
 
 ## Loads the scene afresh from the save and returns it.

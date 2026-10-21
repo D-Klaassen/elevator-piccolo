@@ -4,8 +4,8 @@ extends StaticBody3D
 ## out on their floor. They walk and stand idle, wave when you talk to them, nod when they
 ## thank you and shake their head when they give up; a Spanish guest may point, hold up
 ## fingers or mime where they're going ([Gestures]). Look at them and click to hear which
-## floor they want. Some guests strike
-## up a chat during the ride and wait for your reply. A red "!" above their head means
+## floor they want; now and then one strikes up a chat first and waits for your reply.
+## A red "!" above their head means
 ## they're running out of patience. Whatever a guest says shows in a speech bubble that comes
 ## out of their mouth, with their language on a badge at its top right; for a Spanish guest,
 ## with what you understood underneath.
@@ -64,43 +64,43 @@ const LINES: Array[String] = [
 ## reply depends on what they say: not always the warmest one, never an obviously rude one.
 const CHATS: Array[Dictionary] = [
 	{"line": "Sorry, I'm in a real hurry. Is this thing always this slow?", "replies": [
-		"Not long now, I'll have you there in a moment.",
+		"Nearly there, I'll be quick.",
 		"It's an old lift.",
-		"Ah, but it has history! Built in 1921, the original cables are still...",
+		"Ah, but it's from 1921! The cables are...",
 	]},
 	{"line": "My meeting ran late, and now I've missed lunch.", "replies": [
-		"The kitchen does sandwiches till three. Ask for Marta.",
+		"The kitchen does sandwiches till three.",
 		"That's a shame.",
-		"Cheer up! Skipping lunch is good for you, they say.",
+		"Cheer up! Skipping lunch is healthy.",
 	]},
 	{"line": "I don't really do small talk, sorry.", "replies": [
 		"Of course. A quiet ride it is.",
 		"Okay.",
-		"Oh, just one question then: where are you from?",
+		"Just one question: where are you from?",
 	]},
 	{"line": "Lovely day out, isn't it?", "replies": [
-		"Perfect for the lake walk, if you have the time.",
+		"Perfect for a walk by the lake.",
 		"Not bad at all.",
-		"Enjoy it while it lasts, they say rain's coming this afternoon.",
+		"Enjoy it, rain's coming this afternoon.",
 	]},
 	{"line": "Will my room be ready? I was told two o'clock.", "replies": [
-		"I'll ask the front desk to ring you the moment it is.",
+		"I'll have the desk ring you when it is.",
 		"Best to ask at the front desk.",
-		"They always say two, but between us it's usually more like three.",
+		"Between us, it's usually more like three.",
 	]},
 	{"line": "Do you ever get bored, going up and down all day?", "replies": [
 		"Never. Every ride is someone new.",
 		"Sometimes.",
-		"Honestly? You're the first to ask. Nobody really talks to me...",
+		"Honestly? Nobody ever talks to me...",
 	]},
 	{"line": "Phew, those stairs outside nearly finished me off.", "replies": [
 		"Then sit back, this ride's on the house.",
 		"They are steep.",
-		"Good for the legs, though! I take them twice a day myself.",
+		"Good for the legs! I take them twice a day.",
 	]},
 	{"line": "Is there anywhere to get a decent coffee around here?", "replies": [
 		"The bakery across the road. Skip ours.",
-		"There's a coffee machine in the lounge on floor 1.",
+		"There's a machine in the lounge.",
 		"Ours is the best in town!",
 	]},
 ]
@@ -123,10 +123,14 @@ var language := "en" ## "en" or "es"
 var helpfulness := "" ## for a Spanish guest: a key of [constant Spanish.HELPFULNESS]
 var spanish_line: Array = [] ## for a Spanish guest: [Spanish, English] from [constant Spanish.LINES]
 var asked := 0 ## how often you clicked them
-var chat := {} ## one of [constant CHATS], or empty for a quiet guest
-var chat_at := 0.0 ## seconds into the ride when they start their chat
+## One of [constant CHATS] ([constant Spanish.CHATS] for a Spanish guest), or empty for a
+## quiet guest. A chatty guest starts it the first time you ask their floor.
+var chat := {}
 var chatted := false ## started their chat (they may still be waiting for your reply)
 var reply_order: Array[Reply] = [Reply.GOOD, Reply.NEUTRAL, Reply.BAD] ## how the HUD lists the replies
+## The replies you can give in their chat, in the order the HUD lists them, each as
+## {reply: [enum Reply], text: String}. Set when the chat starts.
+var offers: Array[Dictionary] = []
 var reply := Reply.NEUTRAL ## no reply counts as neutral
 var answered := false
 var temperament := "normal"
@@ -219,7 +223,7 @@ func is_impatient() -> bool:
 
 func press() -> void:
 	asked += 1
-	if language == "en":
+	if language == "en" and not has_chat_to_start():
 		say(line)
 	act(WAVE)
 	talked_to.emit()
@@ -257,6 +261,16 @@ func language_badge() -> String:
 
 func reply_line(r: Reply) -> String:
 	return chat.replies[r]
+
+
+## True for a chatty guest who hasn't had their chat yet.
+func has_chat_to_start() -> bool:
+	return not chat.is_empty() and not chatted
+
+
+## Where their speech bubble comes out, in global coordinates.
+func mouth() -> Vector3:
+	return to_global(Vector3(0, MOUTH_HEIGHT, 0))
 
 
 ## Walks through [param points] (global positions) one after the other, then calls [param on_done].

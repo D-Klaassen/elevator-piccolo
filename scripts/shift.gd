@@ -32,7 +32,7 @@ const COMPLAINT := 0.5 ## stars lost for each complaint: a guest who gave up, wa
 const FIRED_BELOW := 2.0 ## stars
 
 ## Real seconds from 08:00 to 18:00.
-@export var length_seconds := 540.0
+@export var length_seconds := 480.0
 
 var guests: GuestManager
 ## The hotel this shift is in, from [constant Hotels.LADDER]: how many guests come and what they pay.
@@ -169,15 +169,16 @@ func _on_gave_up(guest: Guest) -> void:
 		announced.emit("A guest on floor %d took the stairs.   Complaint: -%.1f star" % [guest.home_floor, COMPLAINT])
 
 
+## A bad reply may get you a complaint. The guest's bubble keeps their reaction and floor;
+## the HUD tells you about the complaint.
 func _on_replied(guest: Guest) -> void:
 	if guest.reply != Guest.Reply.BAD or rng.randf() >= BAD_REPLY_COMPLAINT_CHANCE:
 		return
 	reply_complaints += 1
 	stars = maxf(stars - COMPLAINT, 0.0)
 	stats_changed.emit()
-	guest.say("I'll be mentioning this to the manager.")
 	guest.act(Guest.HEAD_SHAKE)
-	announced.emit("An unhappy guest.   Complaint: -%.1f star" % COMPLAINT)
+	announced.emit("An unhappy guest will tell the manager.   Complaint: -%.1f star" % COMPLAINT)
 
 
 func _end() -> void:

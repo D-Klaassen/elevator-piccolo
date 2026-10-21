@@ -137,8 +137,8 @@ func _test_end_and_play_again() -> void:
 
 
 func _test_full_shift() -> void:
-	# The autopilot answers calls and delivers riders, nearest floor first. Chats are off by
-	# default, so nobody should chat.
+	# The autopilot answers calls and delivers riders, nearest floor first. It never asks a
+	# guest their floor, so nobody should chat: guests only chat when asked.
 	_shift.spawning = true
 	var temperaments := {}
 	var first := {} # floor and clock time of the first guest
@@ -149,9 +149,7 @@ func _test_full_shift() -> void:
 				first.merge({"floor": node.home_floor, "minutes": _shift.minutes}))
 	var rides := 0
 	var chats := [0] # an array, so the lambda can count
-	_guests.chatting.connect(func(_guest: Guest) -> void:
-		chats[0] += 1
-		_guests.reply.call_deferred(Guest.Reply.GOOD))
+	_guests.chatting.connect(func(_guest: Guest) -> void: chats[0] += 1)
 	while not _shift.is_over:
 		var target := _next_floor()
 		if target < 0 or not _elevator.is_open_at_rest() or _elevator.door_blockers > 0:
@@ -160,7 +158,7 @@ func _test_full_shift() -> void:
 		await _ride_to(target, false)
 		await _wait_seconds(0.3) # let guests on this floor start boarding
 		rides += 1
-	print("     autopilot made %d rides and answered %d chats" % [rides, chats[0]])
+	print("     autopilot made %d rides" % rides)
 
 	_check(_shift.is_over, "a whole shift can be played to the end")
 	_check(first.floor == Shift.FIRST_GUEST_FLOOR and first.minutes < Shift.FIRST_GUEST_AT + 1,
@@ -168,7 +166,7 @@ func _test_full_shift() -> void:
 	_check(_shift.spawned == _shift.hotel.guests, "all %d guests turned up (%d)" % [_shift.hotel.guests, _shift.spawned])
 	_check(_shift.served + _shift.lost == _shift.spawned, "every guest was served or gave up (%d + %d)" % [_shift.served, _shift.lost])
 	_check(_shift.served >= _shift.hotel.guests / 2, "the autopilot serves most guests (%d)" % _shift.served)
-	_check(chats[0] == 0, "chats are off: nobody chats (%d)" % chats[0])
+	_check(chats[0] == 0, "nobody chats unasked (%d)" % chats[0])
 	_check(temperaments.size() >= 2, "guests come with different temperaments (%s)" % [temperaments.keys()])
 	_check(is_equal_approx(_shift.money(), _shift.fares + _shift.tips + Shift.WAGE), "money adds up: €%.2f" % _shift.money())
 	_check(_shift.stars == Shift.START_STARS - Shift.COMPLAINT * _shift.lost, "stars: %.1f" % _shift.stars)

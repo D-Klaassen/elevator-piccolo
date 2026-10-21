@@ -8,6 +8,7 @@ extends "res://tests/scene_test.gd"
 
 func _run() -> void:
 	_shift.spawning = false
+	_guests.chat_chance = 0.0 # chats have their own test
 	_guests.patience_scale = 10.0
 	_test_variety()
 	await _test_animations()

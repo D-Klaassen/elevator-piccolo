@@ -22,6 +22,24 @@ _Avoid_: Gallery, showroom, asset testing scene, test level
 A small piece of hallway in the Asset room built in one hotel's style, so that hotel's surfaces and trim are seen together.
 _Avoid_: Swatch, style sample
 
+### Guests
+
+**Chat**:
+A short exchange a guest strikes up when you first ask their floor: they say something, you give one reply, they react and name their floor. Everyone's patience waits while it lasts.
+_Avoid_: Conversation, dialogue, small talk
+
+**Reply**:
+What you say in a chat, one of those on offer. It lands as good, neutral or bad, which changes the tip.
+_Avoid_: Answer, response, choice
+
+**Blurt**:
+The reply you say for yourself when a chat's time runs out, a little more often a bad one.
+_Avoid_: Timeout, auto-reply, default reply
+
+**Speaking ladder**:
+How many of a Spanish chat's real replies you can say, by Spanish lessons taken; until you can say them all you can also nod along ("Sí, sí…"). Speaking comes harder than hearing.
+_Avoid_: Reply unlocks, speaking level
+
 ### Debugging
 
 **Debug options**:
