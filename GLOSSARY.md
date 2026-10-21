@@ -15,7 +15,7 @@ The readable name an asset goes by in the Asset room, such as `loungeSofa`, `doo
 _Avoid_: Asset code, asset ID
 
 **Asset room**:
-A room, reached from the Settings menu in debug builds, where every asset is laid out at in-game size to walk past, look at and comment on.
+A room, reached from the settings' Debug tab in debug builds, where every asset is laid out at in-game size to walk past, look at and comment on.
 _Avoid_: Gallery, showroom, asset testing scene, test level
 
 **Sample corner**:
@@ -43,5 +43,5 @@ _Avoid_: Reply unlocks, speaking level
 ### Debugging
 
 **Debug options**:
-Switches and actions in the Settings menu's Debug section, only in debug builds, that bend the rules for testing: Infinite money, Skip hotel requirements, game speed and End shift now. They are off again every time the game starts.
+Switches and actions in the settings' Debug tab, only in debug builds, that bend the rules for testing: Infinite money, Skip hotel requirements, game speed and End shift now. They are off again every time the game starts.
 _Avoid_: Cheats, dev mode

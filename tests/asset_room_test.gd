@@ -1,10 +1,10 @@
 extends "res://tests/scene_test.gd"
-## Headless scripted test of the Asset room: the Settings menu's Debug section takes you
+## Headless scripted test of the Asset room: the settings' Debug tab takes you
 ## there from a shift or from the staff room, and leaving takes you back where you came
 ## from. Every model under assets/ stands in it, and looking at an asset shows its asset
 ## name; a character goes through its animations, the sound buttons play their sounds
 ## and the music box's tracks while the sample cabs stay quiet, the cab's doors work and
-## the menu's Walk speed slider makes you walk faster.
+## the Debug tab's Walk speed slider makes you walk faster.
 ##
 ## Run: tests/run.sh asset_room_test
 
@@ -26,10 +26,14 @@ func _run() -> void:
 
 func _enter_from_shift() -> void:
 	await _escape()
-	_check(not (_menu().find_child("WalkSpeed", true, false) as Control).visible, "the pause menu in a shift has no Walk speed slider")
-	(_menu().find_child("AssetRoom", true, false) as Button).pressed.emit()
+	(_menu().find_child("Screens", true, false).find_child("Settings", true, false) as Button).pressed.emit()
+	(_menu().find_child("SettingsMenu", true, false) as SettingsMenu).select_tab("debug")
+	var asset_room := _menu().find_child("AssetRoom", true, false) as Button
+	_check(asset_room.is_visible_in_tree(), "the settings' Debug tab in a shift has an Asset room button")
+	_check(not (_menu().find_child("WalkSpeedRow", true, false) as Control).visible, "but no Walk speed slider")
+	asset_room.pressed.emit()
 	_room = await _wait_for_room()
-	_check(_room != null and not paused, "the Asset room button in the pause menu opens the Asset room")
+	_check(_room != null and not paused, "the Asset room button opens the Asset room")
 
 
 func _test_every_model() -> void:
@@ -106,7 +110,8 @@ func _test_walk_speed() -> void:
 	var normal := await _walk(player)
 	await _escape()
 	var slider := _room.find_child("WalkSpeed", true, false) as HSlider
-	_check(slider.visible and slider.value == 1.0, "the menu in the Asset room has a Walk speed slider, at ×1")
+	_check((_room.find_child("WalkSpeedRow", true, false) as Control).visible and slider.value == 1.0,
+			"the Debug tab in the Asset room has a Walk speed slider, at ×1")
 	slider.value = 3.0
 	await _escape()
 	var fast := await _walk(player)
@@ -132,9 +137,9 @@ func _walk(player: Player) -> float:
 
 func _leave_to_shift() -> void:
 	await _escape()
-	var menu := _room.find_child("SettingsMenu", true, false) as SettingsMenu
-	_check(menu.visible and _text(menu).contains("Asset room"), "Esc opens the menu in the Asset room")
-	_check(menu.find_child("AssetRoom", true, false) == null or not (menu.find_child("AssetRoom", true, false) as Control).visible, "it has no button to the Asset room")
+	var menu := _room.find_child("GameMenu", true, false) as GameMenu
+	_check(menu.screen == "main" and _text(menu).contains("Asset room"), "Esc opens the menu in the Asset room")
+	_check(not (menu.find_child("AssetRoom", true, false) as Control).visible, "its Debug tab has no button to the Asset room")
 	(menu.find_child("LeaveAssetRoom", true, false) as Button).pressed.emit()
 	_load_scene(await _wait_for_hotel())
 	_check(not paused and _shift.minutes == Shift.START and not _shift.is_over, "leaving starts the shift afresh")
@@ -155,7 +160,7 @@ func _enter_and_leave_from_staff_room() -> void:
 	var staff_room := _scene.find_child("StaffRoom", true, false) as Control
 	_check(staff_room.visible and paused, "leaving takes you back to the staff room")
 	(staff_room.find_child("Settings", true, false) as Button).pressed.emit()
-	(_menu().find_child("Close", true, false) as Button).pressed.emit()
+	(_menu().find_child("Back", true, false) as Button).pressed.emit()
 	_check(staff_room.visible, "where the settings' Back still leads back to the staff room")
 	(staff_room.find_child("StartShift", true, false) as Button).pressed.emit()
 	_load_scene(await _wait_for_hotel())
@@ -239,8 +244,8 @@ func _escape() -> void:
 		await process_frame
 
 
-func _menu() -> SettingsMenu:
-	return _scene.find_child("SettingsMenu", true, false)
+func _menu() -> GameMenu:
+	return _scene.find_child("GameMenu", true, false)
 
 
 func _text(node: Node) -> String:

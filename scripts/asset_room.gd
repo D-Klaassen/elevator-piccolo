@@ -2,7 +2,7 @@ class_name AssetRoom
 extends Node3D
 ## The Asset room: every asset laid out at its in-game size in one long room, under the
 ## hotel's own light, to walk past, look at and comment on. Only in debug builds, from the
-## Settings menu's Debug section. Looking at an asset shows its asset name in the HUD;
+## settings' Debug tab. Looking at an asset shows its asset name in the HUD;
 ## that is the name to quote when asking for a change.
 ##
 ## You walk down the aisle (+X) through the sections, each with a sign and a 1.8 m pole to
@@ -13,9 +13,9 @@ extends Node3D
 ## button to hear it). The models are picked up from the asset folders, so a new one
 ## shows up on its own.
 ##
-## Esc opens the Settings menu, whose Walk speed slider lets you walk up to
-## [constant MAX_WALK_SPEED] times faster; Leave the Asset room goes back where you came from: the
-## staff room, or a fresh start of the shift you left.
+## Esc opens the menu ([GameMenu]): Leave the Asset room goes back where you came from, the
+## staff room or a fresh start of the shift you left, and the settings' Debug tab has a Walk
+## speed slider that lets you walk up to [constant MAX_WALK_SPEED] times faster.
 
 const SCENE := "res://scenes/asset_room.tscn"
 const ASSETS := "res://assets"
@@ -37,7 +37,7 @@ const MAX_WALK_SPEED := 4.0
 ## there instead of starting a shift. The hotel scene reads it, and clears it, when it loads.
 static var back_to_staff_room := false
 ## How many times faster than in the hotel you walk here, set with the Walk speed slider in
-## the Settings menu. It lasts until the game quits, like the [DebugOptions].
+## the settings' Debug tab. It lasts until the game quits, like the [DebugOptions].
 static var walk_speed := 1.0
 
 ## The sounds played, by name, oldest first.
@@ -47,7 +47,9 @@ var _left_x := 0.0 ## where the next asset on the left-hand (-Z) side of the ais
 var _right_x := 0.0
 var _player: Player
 var _settings: Settings
-var _settings_menu: SettingsMenu
+var _env: Environment
+var _hud: CanvasLayer
+var _menu: GameMenu
 var _crosshair: Label
 var _looking_label: Label
 var _debug_label: Label
@@ -63,9 +65,7 @@ static func enter(tree: SceneTree, from_staff_room: bool) -> void:
 
 func _ready() -> void:
 	_settings = Settings.load_saved()
-	_settings.apply_volume()
-	_settings.apply_anti_aliasing(get_viewport())
-	Hallway.build_environment(self)
+	_env = Hallway.build_environment(self)
 	_left_x = 1.5
 	_right_x = 1.5
 	_section("Characters")
@@ -98,10 +98,10 @@ func _ready() -> void:
 	_player.name = "Player"
 	_player.position = Vector3(0.0, 0.05, 0.0)
 	_player.rotation_degrees.y = -90.0 # down the aisle (+X)
-	_player.look_sensitivity = _settings.look_sensitivity
 	_player.speed = Player.SPEED * walk_speed
 	add_child(_player)
 	_build_hud()
+	_apply_settings()
 	_player.looking_at_changed.connect(_on_looking_at_changed)
 
 
@@ -377,7 +377,9 @@ func _build_room(length: float) -> void:
 
 func _build_hud() -> void:
 	var hud := CanvasLayer.new()
+	hud.name = "HUD"
 	add_child(hud)
+	_hud = hud
 
 	_crosshair = Label.new()
 	_crosshair.text = "+"
@@ -412,14 +414,18 @@ func _build_hud() -> void:
 	_debug_label.text = DebugOptions.label()
 	hud.add_child(_debug_label)
 
-	_settings_menu = SettingsMenu.new()
-	_settings_menu.name = "SettingsMenu"
-	_settings_menu.settings = _settings
-	_settings_menu.pause_requested.connect(_on_pause_requested)
-	_settings_menu.changed.connect(_on_settings_changed)
-	_settings_menu.closed.connect(_on_settings_closed)
-	_settings_menu.asset_room_left.connect(_leave)
-	hud.add_child(_settings_menu)
+	var menu_layer := CanvasLayer.new()
+	menu_layer.name = "Menu"
+	menu_layer.layer = 2
+	add_child(menu_layer)
+	_menu = GameMenu.new()
+	_menu.name = "GameMenu"
+	_menu.settings = _settings
+	_menu.pause_requested.connect(_on_pause_requested)
+	_menu.changed.connect(_on_settings_changed)
+	_menu.closed.connect(_on_menu_closed)
+	_menu.asset_room_left.connect(_leave)
+	menu_layer.add_child(_menu)
 
 
 func _on_looking_at_changed(text: String) -> void:
@@ -430,16 +436,27 @@ func _on_looking_at_changed(text: String) -> void:
 func _on_pause_requested() -> void:
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_settings_menu.open(SettingsMenu.Where.ASSET_ROOM)
+	_hud.hide()
+	_menu.open(GameMenu.Where.ASSET_ROOM)
 
 
-func _on_settings_changed() -> void:
-	_player.look_sensitivity = _settings.look_sensitivity
+func _on_settings_changed(_property: String) -> void:
+	_apply_settings()
+
+
+## What follows the settings here: the sound, the window and the view, how you look round,
+## the crosshair, the controls in the corner, and the walk speed.
+func _apply_settings() -> void:
+	_settings.apply_to(get_viewport(), _env)
+	_player.use_settings(_settings)
 	_player.speed = Player.SPEED * walk_speed
+	_crosshair.text = _settings.crosshair_text()
+	(_hud.get_node("Help") as Control).visible = _settings.help_line
 	_debug_label.text = DebugOptions.label()
 
 
-func _on_settings_closed() -> void:
+func _on_menu_closed() -> void:
+	_hud.show()
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 

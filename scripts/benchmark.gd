@@ -33,6 +33,7 @@ static func requested() -> bool:
 ## with it.
 static func begin(scene: Node) -> void:
 	active = true
+	GameMenu.show_title = false
 	Career.save_path = OS.get_temp_dir().path_join("elevator-piccolo-benchmark-%d.cfg" % OS.get_process_id())
 	Settings.save_path = OS.get_temp_dir().path_join("elevator-piccolo-benchmark-settings-%d.cfg" % OS.get_process_id())
 	var career := Career.new()
@@ -102,8 +103,9 @@ func _run() -> void:
 ## One frame, with the shift kept running: a lost focus would otherwise pause it.
 func _frame() -> void:
 	get_tree().paused = false
-	for menu in get_parent().find_children("*", "SettingsMenu", true, false):
-		menu.hide()
+	for menu: GameMenu in get_parent().find_children("*", "GameMenu", true, false):
+		if menu.is_open():
+			menu.close()
 	await get_tree().process_frame
 
 
