@@ -32,7 +32,7 @@ const COMPLAINT := 0.5 ## stars lost for each complaint: a guest who gave up, wa
 const FIRED_BELOW := 2.0 ## stars
 
 ## Real seconds from 08:00 to 18:00.
-@export var length_seconds := 540.0
+@export var length_seconds := 480.0
 
 var guests: GuestManager
 ## The hotel this shift is in, from [constant Hotels.LADDER]: how many guests come and what they pay.
