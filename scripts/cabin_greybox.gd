@@ -37,6 +37,7 @@ func _ready() -> void:
 	_career = Career.load_saved()
 	_settings = Settings.load_saved()
 	_settings.apply_volume()
+	_settings.apply_anti_aliasing(get_viewport())
 	var hotel := _career.hotel_info()
 	_floors = hotel.floors
 	Hallway.build_environment(self)

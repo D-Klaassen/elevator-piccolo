@@ -1,8 +1,8 @@
 class_name Benchmark
 extends Node
-## Measures how heavy the game is to draw, to check it runs at 60 fps on a Steam Deck. Start
-## the game with [code]--benchmark[/code] after [code]--[/code] (also an exported build:
-## [code]./ElevatorPiccolo.x86_64 -- --benchmark[/code]). It plays nothing and saves nothing
+## Measures how heavy the game is to draw, to check it runs at 60 fps on Mac and Windows.
+## Start the game with [code]--benchmark[/code] after [code]--[/code] (also an exported
+## build: [code]ElevatorPiccolo.exe -- --benchmark[/code]). It plays nothing and saves nothing
 ## of yours: it loads Pension Bellevue, the biggest hotel, with a temporary career, fills it
 ## with guests, gets them talking, and measures a few seconds from each of a handful of
 ## views with vsync off: frames per second, the CPU and GPU time per frame and the draw

@@ -12,7 +12,7 @@ A game design + tech spec for a playable **vertical slice**: engine chosen, firs
 - Team: Dion + Thijs, web-dev background, new to game engines but want to learn a real one. No dedicated artist.
 - Perspective: **3D first-person** — you are standing in the elevator.
 - Chat: **scripted dialogue choices**; foreign languages shown as unreadable text/gibberish + gestures/hints you must interpret. LLM-driven guests = possible stretch goal, not slice.
-- Platforms: Steam on Windows, macOS, Steam Deck. Prefer free engine; revenue share only with high threshold.
+- Platforms: Steam on Windows and macOS; Steam Deck later (since 2026-10-21: no Deck to test on). Prefer free engine; revenue share only with high threshold.
 - Tracker: local markdown in `.wayfinder/` (tickets in `tickets/`, blocking via `blocked_by:` frontmatter, claim via `assignee:`).
 - Each ticket session: call `grilling` + `domain-modeling` skills when in doubt.
 

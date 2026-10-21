@@ -1,7 +1,7 @@
 class_name Controls
-## The input actions, for keyboard and mouse and for a controller (Xbox layout, as on the
-## Steam Deck): left stick or WASD to walk, right stick to look (the mouse is handled by
-## [Player]), A or E to press what you look at, Start or Esc to pause. In menus the D-pad
+## The input actions, for keyboard and mouse and for a controller (Xbox layout): left
+## stick or WASD to walk, right stick to look (the mouse is handled by [Player]), A or E to
+## press what you look at, Start or Esc to pause. In menus the D-pad
 ## or left stick moves between buttons, A presses and B goes back.
 
 const STICK_DEADZONE := 0.2

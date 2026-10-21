@@ -57,9 +57,16 @@ func _test_menu() -> void:
 	_check(menu.visible and paused, "Start pauses and opens the menu")
 	var close := menu.find_child("Close", true, false) as Button
 	var slider := menu.find_child("LookSensitivity", true, false) as HSlider
+	var smooth := menu.find_child("AntiAliasing", true, false) as CheckButton
 	_check(close.has_focus(), "with Resume focused")
 	await _tap(JOY_BUTTON_DPAD_UP)
-	_check(slider.has_focus(), "D-pad up moves to the look sensitivity slider")
+	_check(smooth.has_focus(), "D-pad up moves to the Smooth edges switch")
+	await _tap(JOY_BUTTON_A)
+	_check(not smooth.button_pressed and root.msaa_3d == Viewport.MSAA_DISABLED, "A switches it off")
+	await _tap(JOY_BUTTON_A)
+	_check(smooth.button_pressed and root.msaa_3d == Viewport.MSAA_2X, "and on again")
+	await _tap(JOY_BUTTON_DPAD_UP)
+	_check(slider.has_focus(), "D-pad up again moves to the look sensitivity slider")
 	var before := slider.value
 	await _tap(JOY_BUTTON_DPAD_LEFT)
 	_check(slider.value < before, "D-pad left turns it down (%.2f to %.2f)" % [before, slider.value])
